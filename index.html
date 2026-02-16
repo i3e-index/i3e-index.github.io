@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-2429LYJSNH"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+  
+    gtag('config', 'G-2429LYJSNH');
+  </script>
+  
+  <meta charset="UTF-8">
+  <title>I3E Economic Uncertainty Index | Global Economic Uncertainty Indicator</title>
+  <!-- Make iOS use the whole notch area & allow true full-bleed on phones -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="The I3E Economic Uncertainty Index measures and compares economic uncertainty in major economies worldwide. Updated daily, unbiased and transparent.">
+  <meta name="keywords" content="I3E, Economic Uncertainty, Uncertainty Index, Economic Risk, IESE, Economic Indicators, International Center for Decision Making, Global Economic Index, Research, Data">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://wdecisions.github.io/i3e/">
+
+  <!-- ✅ Favicons (clean + cache-busted) 
+  <link rel="icon" type="image/png" href="favicon.png?v=2" sizes="48x48">
+  <link rel="icon" href="favicon.ico?v=2" type="image/x-icon">
+  <link rel="apple-touch-icon" href="favicon.png?v=2">
+  <link rel="mask-icon" href="mask-icon.svg" color="#FF3B30"> -->
+
+   <!-- ✅ Favicons (Fixed with Absolute URLs for Google) -->
+  <link rel="icon" href="https://wdecisions.github.io/i3e/favicon.png?v=2" sizes="48x48" type="image/png">
+  <link rel="icon" href="https://wdecisions.github.io/i3e/favicon.ico?v=2" sizes="any">
+  <link rel="apple-touch-icon" href="https://wdecisions.github.io/i3e/favicon.png?v=2">
+  <link rel="mask-icon" href="https://wdecisions.github.io/i3e/mask-icon.svg" color="#FF3B30">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:title" content="I3E Economic Uncertainty Index">
+  <meta property="og:description" content="Track economic uncertainty globally with the I3E Index. Daily updates, transparent methodology, downloadable data for researchers and decision-makers">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://wdecisions.github.io/i3e/">
+  <meta property="og:image" content="https://wdecisions.github.io/i3e/plots/global_weighted.png">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="I3E Economic Uncertainty Index">
+  <meta name="twitter:description" content="Explore global economic uncertainty with I3E's transparent and up-to-date index.">
+  <meta name="twitter:image" content="https://wdecisions.github.io/i3e/plots/global_weighted.png">
+
+  <!-- Schema.org Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "I3E Economic Uncertainty Index",
+    "url": "https://wdecisions.github.io/i3e/",
+    "logo": "https://wdecisions.github.io/i3e/favicon.png",
+    "description": "The I3E Economic Uncertainty Index is an unbiased, daily-updated measure of global and national economic uncertainty, powered by IESE Business School and the International Center for Decision Making.",
+    "publisher": {
+      "@type": "Organization",
+      "name": "IESE Business School",
+      "url": "https://www.iese.edu"
+    }
+  }
+  </script>
+
+  <!-- Load Plotly and Custom Charts -->
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+  <!-- 🔧 Shim: force responsive plots + immediate resize after newPlot -->
+  <script>
+    (function () {
+      if (!window.Plotly) return;
+      const _newPlot = Plotly.newPlot;
+      Plotly.newPlot = function (root, data, layout, config) {
+        const cfg = Object.assign({ responsive: true }, config || {});
+        const lay = Object.assign({ autosize: true }, layout || {});
+        return _newPlot(root, data, lay, cfg).then(function (gd) {
+          try { Plotly.Plots.resize(gd); } catch (e) {}
+          return gd;
+        });
+      };
+    })();
+  </script>
+
+  <script src="charts.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      background-color: #ffffff;
+      display: flex;
+    }
+    .sidebar {
+      width: 120px;
+      flex-shrink: 0;
+      background-color: #f4f4f4;
+      padding: 0px 10px 10px 10px;
+      height: 100vh;
+      overflow-y: auto;
+      border-right: 1px solid #ddd;
+    }
+    .sidebar h2 {
+      font-size: 16px;
+      margin-top: 0;
+      margin-bottom: 8px;
+    }
+    .sidebar a {
+      display: block;
+      padding: 4px 8px;
+      color: #333;
+      text-decoration: none;
+      margin-bottom: 2px;
+      font-size: 14px;
+    }
+    .sidebar a:hover {
+      background-color: #FF3B30;
+      color: white;
+    }
+    .main {
+      flex-grow: 1;
+      max-width: 1700px;
+      margin: 0 20px 20px 0;
+      padding: 20px;
+    }
+    .header {
+      background-color: #FF3B30;
+      color: white;
+      padding: 10px 20px;
+      margin-left: 0.01px;
+      box-sizing: border-box;
+      max-width: 1500px;
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-top .title,
+    .header-top .icdm {
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .header-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .nav a {
+      display: inline-block;
+      color: white;
+      text-align: center;
+      text-decoration: none;
+      margin-right: 30px;
+      font-size: 16px;
+      line-height: 16px;
+    }
+    .business {
+      font-size: 16px;
+      line-height: 20px;
+    }
+    .content-wrapper {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 80px;
+      margin-top: 20px;
+    }
+    .content {
+      flex: 0 1 67%;
+      text-align: justify;
+      font-size: 13px;
+    }
+    .content p {
+      font-size: 15px;
+    }
+    .content li {
+      font-size: 15px;
+    }
+    #table-container {
+      min-width: 200px;
+    }
+    #table-container table {
+      width: 100%;
+      border-collapse: collapse;
+      border: none;
+      font-family: inherit;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    #table-container th,
+    #table-container td {
+      border-top: 1px solid #ddd;
+      border-bottom: 1px solid #ddd;
+      border-left: none;
+      border-right: none;
+      padding: 3px 8px;
+      text-align: left;
+    }
+    #table-container th {
+      background-color: #FF3B30;
+      color: white;
+      font-weight: bold;
+    }
+    h1 {
+      color: #333333;
+      font-size: 18px;
+    }
+    h2 {
+      color: #333333;
+      font-size: 16px;
+    }
+    p {
+      line-height: 1.6;
+      color: #444;
+    }
+
+    /* ✅ Base style for Plotly containers: roomy & responsive on desktop */
+    .plot-container {
+      width: 100%;
+      max-width: none;
+      height: 60vh;
+    }
+
+    /* 🔧 Ensure Plotly's inner nodes expand to container width */
+    .plot-container > .js-plotly-plot,
+    .plot-container .plotly,
+    .plot-container svg {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+
+    /* Existing mobile adjustments */
+    @media (max-width: 1000px) {
+      .content-wrapper {
+        flex-direction: column;
+        gap: 30px;
+      }
+      #table-container {
+        width: 100%;
+        min-width: 0;
+        margin: 0 auto;
+      }
+      .content {
+        width: 100%;
+        max-width: 100%;
+      }
+    }
+
+    /* ✅ Full-bleed charts + mobile layout */
+    @media (max-width: 768px) {
+      /* Stack sidebar above main so charts can take full width */
+      body {
+        flex-direction: column;
+      }
+      .sidebar {
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid #ddd;
+      }
+      .main {
+        margin: 0;         /* remove side margins that cramp the chart */
+        padding: 0;        /* remove padding so we can bleed to edges */
+        max-width: none;
+      }
+      .header {
+        max-width: none;
+        margin-left: 0;
+        box-sizing: border-box;
+      }
+      /* Edge-to-edge (even beyond container padding) */
+      .plot-container {
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+        margin-right: calc(50% - 50vw);
+        height: 70vh;     /* taller on phones for readability */
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <img src="favicon_XL.png" alt="I3E Economic Uncertainty Index logo" style="display:block; margin:0 auto 18px auto; width:100%; height:auto; max-width:120px;">
+    <h2>Countries</h2>
+    <a href="#" data-country="global">Global</a>
+    <a href="#" data-country="global_weighted">Global Weight</a>
+    <a href="#" data-country="australia">Australia</a>
+    <a href="#" data-country="austria">Austria</a>
+    <a href="#" data-country="belgium">Belgium</a>
+    <a href="#" data-country="brazil">Brazil</a>
+    <a href="#" data-country="canada">Canada</a>
+    <a href="#" data-country="china">China</a>
+    <a href="#" data-country="egypt">Egypt</a>
+    <a href="#" data-country="france">France</a>
+    <a href="#" data-country="germany">Germany</a>
+    <a href="#" data-country="greece">Greece</a>
+    <a href="#" data-country="israel">Israel</a>
+    <a href="#" data-country="italy">Italy</a>
+    <a href="#" data-country="japan">Japan</a>
+    <a href="#" data-country="mexico">Mexico</a>
+    <a href="#" data-country="netherlands">Netherlands</a>
+    <a href="#" data-country="poland">Poland</a>
+    <a href="#" data-country="south_africa">South Africa</a>
+    <a href="#" data-country="south_korea">South Korea</a>
+    <a href="#" data-country="spain">Spain</a>
+    <a href="#" data-country="turkey">Turkey</a>
+    <a href="#" data-country="united_kingdom">United Kingdom</a>
+    <a href="#" data-country="united_states">United States</a>
+  </div>
+
+  <div class="main">
+    <div class="header">
+      <div class="header-top">
+        <div class="title">IESE I3E Economic Uncertainty Index</div>
+        <div class="icdm">International Center for Decision Making (ICDM)</div>
+      </div>
+      <div class="header-bottom">
+        <div class="nav">
+          <a href="#">Home</a>
+          <a href="#">Global Indices</a>
+          <a href="#">Data</a>
+          <a href="#">Research</a>
+          <a href="#">Contact</a>
+        </div>
+        <div class="business">IESE Business School</div>
+      </div>
+    </div>
+
+    <!-- Content and table container side by side -->
+    <div class="content-wrapper">
+      <div class="content" id="content">
+        <h1>IESE I3E Economic Uncertainty Index</h1>
+        <p>
+          The <strong> IESE I3E Economic Uncertainty Index</strong> is a daily indicator of economic uncertainty across major world economies. 
+          Developed by IESE Business School and the International Center for Decision Making, the I3E Index combines stock market volatility, bond yields, exchange rates, and oil prices into a transparent and objective measure.
+        </p>
+        <p>
+          The IESE I3E Economic Uncertainty Index offers a quantifiable and bias-free benchmark for comparing uncertainty levels across nations, providing insight for research and decision-making.
+        </p>
+        <p>
+          The index is computed daily, using the variation rates of four key variables in each country:
+        </p>
+        <ul>
+          <li>Domestic Stock Index</li>
+          <li>Domestic 10-year government bond yields</li>
+          <li>Domestic exchange rate</li>
+          <li>International Brent crude oil prices</li>
+        </ul>
+        <p>
+          The index has an average value of 100. Although it can vary across any range, in practice it fluctuates between 0 and 200.
+          Values below 100 indicate uncertainty lower than the average of previous decades. Values above 100 indicate greater uncertainty.
+        </p> 
+          <strong>Learn more:</strong>
+          <p>
+          <a href="I3E.pdf" target="_blank">I3E Technical Note</a>
+          </p>
+          <p>
+          <a href="I3E_and_alternatives.pdf" target="_blank">Comparison I3E, WUI, EPU, and WIX</a>
+          </p>
+        </p>
+      </div>
+
+      <!-- Table container shown only on the Home view -->
+      <div id="table-container"></div>
+    </div>
+
+    <!-- Chart containers -->
+    <div id="chart-global" class="plot-container"></div>
+    <div id="chart-global_weighted" class="plot-container" style="display:none;"></div>
+    <div id="chart-australia" class="plot-container" style="display:none;"></div>
+    <div id="chart-austria" class="plot-container" style="display:none;"></div>
+    <div id="chart-belgium" class="plot-container" style="display:none;"></div>
+    <div id="chart-brazil" class="plot-container" style="display:none;"></div>
+    <div id="chart-canada" class="plot-container" style="display:none;"></div>
+    <div id="chart-china" class="plot-container" style="display:none;"></div>
+    <div id="chart-egypt" class="plot-container" style="display:none;"></div>
+    <div id="chart-france" class="plot-container" style="display:none;"></div>
+    <div id="chart-germany" class="plot-container" style="display:none;"></div>
+    <div id="chart-greece" class="plot-container" style="display:none;"></div>
+    <div id="chart-israel" class="plot-container" style="display:none;"></div>
+    <div id="chart-italy" class="plot-container" style="display:none;"></div>
+    <div id="chart-japan" class="plot-container" style="display:none;"></div>
+    <div id="chart-mexico" class="plot-container" style="display:none;"></div>
+    <div id="chart-netherlands" class="plot-container" style="display:none;"></div>
+    <div id="chart-poland" class="plot-container" style="display:none;"></div>
+    <div id="chart-south_africa" class="plot-container" style="display:none;"></div>
+    <div id="chart-south_korea" class="plot-container" style="display:none;"></div>
+    <div id="chart-spain" class="plot-container" style="display:none;"></div>
+    <div id="chart-turkey" class="plot-container" style="display:none;"></div>
+    <div id="chart-united_kingdom" class="plot-container" style="display:none;"></div>
+    <div id="chart-united_states" class="plot-container" style="display:none;"></div>
+  </div>
+
+  <script>
+    // Set global variable to data date
+    var time = "";
+
+    fetch('i3e_countries.txt')
+      .then(response => response.text())
+      .then(text => {
+        let lines = text.trim().split('\n');
+        if (lines.length < 2) return;
+        let lastLine = lines[lines.length - 1];
+        let firstCell = lastLine.split('\t')[0].trim();
+        time = firstCell;
+        loadCountryTable();
+      })
+      .catch(error => console.error('Error loading time from country data:', error));
+
+    var initialContent = document.getElementById('content').innerHTML;
+    document.getElementById('table-container').style.display = 'block';
+
+    document.querySelectorAll('.nav a').forEach(function(link) {
+      link.addEventListener('click', function(event) {
+        event.preventDefault();
+        var contentDiv = document.getElementById('content');
+        var tableDiv = document.getElementById('table-container');
+        var linkText = this.textContent.trim();
+
+        if (linkText === 'Home') {
+          location.reload(); // Forces a full page refresh
+        } else if (linkText === 'Global Indices') {
+          contentDiv.innerHTML = `
+            <h2 style="text-align: left;">I3E Global Indices</h2>
+          `;
+          tableDiv.style.display = 'none';
+        } else if (linkText === 'Data') {
+          contentDiv.innerHTML = `
+            <p><a href="i3e_global.txt" target="_blank">DATA</a> - Download I3E global data (txt). Since 1990-01-01. Updated daily (${time}).</p>
+            <p><a href="i3e_global_weighted.txt" target="_blank">DATA</a> - Download I3E global weighted data (txt). Since 1990-01-01. Updated daily (${time}).</p>
+            <p><a href="i3e_countries.txt" target="_blank">DATA</a> - Download I3E country data (txt). Since 1990-01-01. Updated daily (${time}).</p>
+          `;
+          tableDiv.style.display = 'none';
+          document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
+        } else if (linkText === 'Research') {
+          contentDiv.innerHTML = `
+            <h2>Research Papers</h2>
+            <p><a href="I3E.pdf" target="_blank">Working paper</a> - I3E Technical Note.</p>
+            <p><a href="I3E_and_alternatives.pdf" target="_blank">Working paper</a> - Comparison I3E, WUI, EPU and WIX.</p>
+          `;
+          tableDiv.style.display = 'none';
+          document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
+        } else if (linkText === 'Contact') {
+          contentDiv.innerHTML = `
+            <p>
+              Miguel Angel Ariño <br>
+              Professor, Managerial Decision Sciences <br>
+              IESE Business School <br>
+              <a href="https://www.iese.edu/es/claustro-investigacion/claustro/miguel-angel-arino/" target="_blank" style="color:#FF3B30;">Website</a><br>
+              <br>
+              Roberto Garcia-Castro <br>
+              Professor, Managerial Decision Sciences <br>
+              IESE Business School <br>
+              <a href="https://www.iese.edu/es/claustro-investigacion/claustro/roberto-garcia-castro/" target="_blank" style="color:#FF3B30;">Website</a><br>
+              <br>
+              International Center for Decision Making (ICDM) <br>
+              IESE Business School <br>
+              <a href="https://www.iese.edu" target="_blank" style="color:#FF3B30;">Website</a><br>
+            </p>
+          `;
+          tableDiv.style.display = 'none';
+          document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
+        } else {
+          contentDiv.innerHTML = "";
+          tableDiv.style.display = 'none';
+        }
+      });
+    });
+
+    function formatCountryName(name) {
+      return name.replace(/_/g, ' ')
+                 .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function loadCountryTable() {
+      fetch('i3e_countries.txt')
+        .then(response => response.text())
+        .then(text => {
+          let lines = text.trim().split('\n');
+          if (lines.length < 3) return;
+
+          let headerParts = lines[0].split('\t');
+          if (headerParts[0].trim() === '') headerParts.shift();
+
+          let dataRows = lines.slice(1).map(row => row.split('\t').slice(1));
+          let dates = lines.slice(1).map(row => row.split('\t')[0]);
+          let lastIdx = dataRows.length - 1;
+          let idx30 = dataRows.length - 22;
+          let idx365 = dataRows.length - 261;
+
+          const countryBlocks = [
+            ["united_states", "canada"],
+            ["austria", "belgium", "france", "germany", "greece", "italy", "netherlands", "spain", "poland", "united_kingdom"],
+            ["china", "japan", "south_korea", "australia"],
+            ["brazil", "mexico"],
+            ["israel", "turkey", "egypt", "south_africa"]
+          ];
+          const globalBlock = ["global", "global_weighted"];
+
+          let countryIndexMap = {};
+          headerParts.forEach((name, idx) => {
+            countryIndexMap[name.trim().toLowerCase()] = idx;
+          });
+
+          let tableHTML = '';
+          tableHTML += '<tr><th>Country</th><th>I3E</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th></tr>';
+
+          countryBlocks.forEach((block, blockIdx) => {
+            block.forEach((code, countryIdx) => {
+              let i = countryIndexMap[code];
+              if (i === undefined) return;
+
+              let countryName = formatCountryName(headerParts[i].trim());
+              let value = dataRows[lastIdx][i] ? dataRows[lastIdx][i].trim() : "";
+              let prevValue = dataRows[lastIdx - 1][i] ? dataRows[lastIdx - 1][i].trim() : "";
+              let val30 = (idx30 >= 0 && dataRows[idx30][i]) ? dataRows[idx30][i].trim() : "";
+              let val365 = (idx365 >= 0 && dataRows[idx365][i]) ? dataRows[idx365][i].trim() : "";
+
+              let numValue = parseFloat(value);
+              let numPrevValue = parseFloat(prevValue);
+              let numVal30 = parseFloat(val30);
+              let numVal365 = parseFloat(val365);
+
+              let diff1d = "";
+              if (!isNaN(numValue) && !isNaN(numPrevValue)) {
+                let diff1dValue = numValue - numPrevValue;
+                diff1d = diff1dValue >= 0
+                  ? `<span style="color:red;">+${diff1dValue.toFixed(1)}</span>`
+                  : `<span style="color:green;">${diff1dValue.toFixed(1)}</span>`;
+              }
+
+              let diff30d = "";
+              if (!isNaN(numValue) && !isNaN(numVal30)) {
+                let diff30dValue = numValue - numVal30;
+                diff30d = diff30dValue >= 0
+                  ? `<span style="color:red;">+${diff30dValue.toFixed(1)}</span>`
+                  : `<span style="color:green;">${diff30dValue.toFixed(1)}</span>`;
+              }
+
+              let diff365d = "";
+              if (!isNaN(numValue) && !isNaN(numVal365)) {
+                let diff365dValue = numValue - numVal365;
+                diff365d = diff365dValue >= 0
+                  ? `<span style="color:red;">+${diff365dValue.toFixed(1)}</span>`
+                  : `<span style="color:green;">${diff365dValue.toFixed(1)}</span>`;
+              }
+
+              const isLastInBlock = (countryIdx === block.length - 1);
+              const tdStyle = isLastInBlock ? ' style="border-bottom: 2px solid #bbb;"' : '';
+
+              tableHTML += `<tr>
+                <td${tdStyle}>${countryName}</td>
+                <td${tdStyle}>${value}</td>
+                <td${tdStyle}>${diff1d}</td>
+                <td${tdStyle}>${diff30d}</td>
+                <td${tdStyle}>${diff365d}</td>
+              </tr>`;
+            });
+          });
+
+          globalBlock.forEach(code => {
+            let i = countryIndexMap[code];
+            if (i === undefined) return;
+            let countryName = formatCountryName(headerParts[i].trim());
+            let value = dataRows[lastIdx][i] ? dataRows[lastIdx][i].trim() : "";
+            let prevValue = dataRows[lastIdx - 1][i] ? dataRows[lastIdx - 1][i].trim() : "";
+            let val30 = (idx30 >= 0 && dataRows[idx30][i]) ? dataRows[idx30][i].trim() : "";
+            let val365 = (idx365 >= 0 && dataRows[idx365][i]) ? dataRows[idx365][i].trim() : "";
+
+            let numValue = parseFloat(value);
+            let numPrevValue = parseFloat(prevValue);
+            let numVal30 = parseFloat(val30);
+            let numVal365 = parseFloat(val365);
+
+            let diff1d = "";
+            if (!isNaN(numValue) && !isNaN(numPrevValue)) {
+              let diff1dValue = numValue - numPrevValue;
+              diff1d = diff1dValue >= 0
+                ? `<span style="color:red;">+${diff1dValue.toFixed(1)}</span>`
+                : `<span style="color:green;">${diff1dValue.toFixed(1)}</span>`;
+            }
+            let diff30d = "";
+            if (!isNaN(numValue) && !isNaN(numVal30)) {
+              let diff30dValue = numValue - numVal30;
+              diff30d = diff30dValue >= 0
+                ? `<span style="color:red;">+${diff30dValue.toFixed(1)}</span>`
+                : `<span style="color:green;">${diff30dValue.toFixed(1)}</span>`;
+            }
+            let diff365d = "";
+            if (!isNaN(numValue) && !isNaN(numVal365)) {
+              let diff365dValue = numValue - numVal365;
+              diff365d = diff365dValue >= 0
+                ? `<span style="color:red;">+${diff365dValue.toFixed(1)}</span>`
+                : `<span style="color:green;">${diff365dValue.toFixed(1)}</span>`;
+            }
+
+            tableHTML += `<tr style="font-weight: bold;">
+              <td>${countryName}</td>
+              <td>${value}</td>
+              <td>${diff1d}</td>
+              <td>${diff30d}</td>
+              <td>${diff365d}</td>
+            </tr>`;
+          });
+
+          let fullHTML = `<div style="font-size:14px; margin-bottom:10px;">Date: ${time}<br>I3E: last 1D: Δ1-day 1M: Δ1-month 1Y: Δ1-year</div><table>${tableHTML}</table>`;
+          document.getElementById('table-container').innerHTML = fullHTML;
+        })
+        .catch(error => console.error('Error loading country data:', error));
+    }
+  </script>
+
+  <!-- All other content -->
+  <script>
+    const columns = [
+      "australia", "austria", "belgium", "brazil", "canada", "china", "egypt", "france", "germany", "greece",
+      "israel", "italy", "japan", "mexico", "netherlands", "poland", "south_africa", "south_korea",
+      "spain", "turkey", "united_kingdom", "united_states", "global", "global_weighted"
+    ];
+
+    document.addEventListener("DOMContentLoaded", () => {
+      renderChart("chart-global", "global");
+      // nothing needed here unless you want to pre-render "global"
+    });
+  </script>
+
+  <script>
+    document.querySelectorAll('.sidebar a[data-country]').forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const country = this.getAttribute('data-country');
+        const containerId = `chart-${country}`;
+
+        // Hide all charts
+        document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
+
+        // Show this one
+        const chartDiv = document.getElementById(containerId);
+        if (chartDiv) {
+          chartDiv.style.display = 'block';
+          chartDiv.scrollIntoView({ behavior: 'smooth' });
+          renderChart(containerId, country);
+
+          // ✅ Ensure Plotly recalculates size when we reveal a hidden chart
+          if (window.Plotly) {
+            setTimeout(() => {
+              try { Plotly.Plots.resize(chartDiv); } catch(e) {}
+            }, 0);
+          }
+        }
+      });
+    });
+  </script>
+
+  <!-- ✅ Global resize helpers so charts follow viewport changes/rotation -->
+  <script>
+    function resizeAllPlots() {
+      if (!window.Plotly) return;
+      document.querySelectorAll('.plot-container').forEach(function (el) {
+        try { Plotly.Plots.resize(el); } catch(e) {}
+      });
+    }
+
+    // Window resizes
+    window.addEventListener('resize', resizeAllPlots);
+
+    // Orientation changes on mobile
+    window.addEventListener('orientationchange', function () {
+      setTimeout(resizeAllPlots, 150); // small delay so viewport settles
+    });
+
+    // Also resize once after first paint to decouple from table width
+    window.addEventListener('load', function () {
+      setTimeout(resizeAllPlots, 0);
+    });
+  </script>
+
+</body>
+</html>
