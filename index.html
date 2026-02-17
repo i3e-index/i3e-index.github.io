@@ -155,7 +155,6 @@
     .content p { font-size: 15px; }
     .content li { font-size: 15px; }
 
-    /* ✅ Table containers */
     #table-container,
     #table-subindex-container {
       min-width: 200px;
@@ -198,7 +197,6 @@
     h2 { color: #333333; font-size: 16px; }
     p { line-height: 1.6; color: #444; }
 
-    /* ✅ Base style for Plotly containers */
     .plot-container {
       width: 100%;
       max-width: none;
@@ -322,10 +320,7 @@
         <p><a href="I3E_and_alternatives.pdf" target="_blank">Comparison I3E, WUI, EPU, and WIX</a></p>
       </div>
 
-      <!-- Home table -->
       <div id="table-container"></div>
-
-      <!-- Subindex table -->
       <div id="table-subindex-container" style="display:none;"></div>
     </div>
 
@@ -380,31 +375,95 @@
                  .replace(/\b\w/g, c => c.toUpperCase());
     }
 
-    function fetchTextWithFallback(paths) {
-      // paths: array like ["subindex.txt","Subindex.txt"]
-      return fetch(paths[0]).then(r => {
-        if (!r.ok) throw new Error("Fetch failed: " + paths[0]);
-        return r.text();
-      }).catch(() => {
-        if (paths.length < 2) throw new Error("No fallback path provided.");
-        return fetch(paths[1]).then(r2 => {
-          if (!r2.ok) throw new Error("Fetch failed: " + paths[1]);
-          return r2.text();
-        });
-      });
+    function isLikelyDateString(s) {
+      // accept YYYY-MM-DD, YYYY/MM/DD, or YYYY-MM-DD HH:MM:SS
+      if (!s) return false;
+      const t = String(s).trim();
+      return /^\d{4}[-\/]\d{2}[-\/]\d{2}(\s+\d{2}:\d{2}(:\d{2})?)?$/.test(t);
     }
 
-    // Load home data date + table
+    function parseTabFile(text) {
+      // Returns { dates: [...], header: [...], rows: [[...], ...] } where header/rows exclude the time index column.
+      const lines = String(text || "").trim().split('\n').filter(l => l.length > 0);
+      if (lines.length < 2) return null;
+
+      // split helper that preserves empty cells (important for leading tab)
+      const splitRow = (line) => String(line).replace(/\r$/, '').split('\t');
+
+      let rawHeader = splitRow(lines[0]).map(s => String(s || '').replace(/^\uFEFF/, '').trim());
+      let rawData = lines.slice(1).map(splitRow);
+
+      // Decide if first column is an index (date/time)
+      // Typical pandas output: header[0] == "" and data[0][0] is a date.
+      const headerFirst = (rawHeader[0] || "").trim().toLowerCase();
+      const dataFirst = rawData[0] && rawData[0][0] ? String(rawData[0][0]).trim() : "";
+
+      let hasIndexCol =
+        headerFirst === "" ||
+        headerFirst === "date" || headerFirst === "time" || headerFirst === "datetime" ||
+        isLikelyDateString(dataFirst);
+
+      // If hasIndexCol, drop first column from header AND from every data row.
+      let header = rawHeader;
+      let dates = rawData.map(r => (r && r[0] !== undefined) ? String(r[0]).trim() : "");
+
+      if (hasIndexCol) {
+        header = rawHeader.slice(1);
+        rawData = rawData.map(r => r.slice(1));
+      } else {
+        // No index col: dates unknown; keep as empty
+        dates = rawData.map(_ => "");
+      }
+
+      // Normalize row lengths (in case of trailing tabs)
+      const targetLen = header.length;
+      const rows = rawData.map(r => {
+        const rr = r.slice(0, targetLen);
+        while (rr.length < targetLen) rr.push("");
+        return rr;
+      });
+
+      // Also normalize header length to targetLen (trim if extra)
+      header = header.slice(0, targetLen);
+
+      return { dates, header, rows };
+    }
+
+    function diffSpan(aStr, bStr, decimals) {
+      let a = parseFloat(aStr), b = parseFloat(bStr);
+      if (isNaN(a) || isNaN(b)) return "";
+      let d = a - b;
+      const k = (typeof decimals === "number") ? decimals : 1;
+      return d >= 0 ? `<span style="color:red;">+${d.toFixed(k)}</span>` : `<span style="color:green;">${d.toFixed(k)}</span>`;
+    }
+
+    // Country blocks
+    const countryBlocks = [
+      ["united_states", "canada"],
+      ["austria", "belgium", "france", "germany", "greece", "italy", "netherlands", "spain", "poland", "united_kingdom"],
+      ["china", "japan", "south_korea", "australia"],
+      ["brazil", "mexico"],
+      ["israel", "turkey", "egypt", "south_africa"]
+    ];
+    const globalBlock = ["global", "global_weighted"];
+    const globalCountry = "global";
+
+    // Load i3e_countries.txt once
     fetch('i3e_countries.txt')
       .then(r => r.text())
       .then(text => {
-        let lines = text.trim().split('\n');
-        if (lines.length < 2) return;
-        time = (lines[lines.length - 1].split('\t')[0] || "").trim();
-        loadCountryTable(text);
-      })
-      .catch(err => console.error('Error loading i3e_countries:', err));
+        const parsed = parseTabFile(text);
+        if (!parsed) return;
 
+        // date = last date from index column (before dropping)
+        // we saved dates already in parsed.dates
+        if (parsed.dates && parsed.dates.length) time = parsed.dates[parsed.dates.length - 1];
+
+        loadCountryTable(parsed);
+      })
+      .catch(err => console.error('Error loading i3e_countries.txt:', err));
+
+    // Nav behavior
     document.querySelectorAll('.nav a').forEach(function(link) {
       link.addEventListener('click', function(event) {
         event.preventDefault();
@@ -480,84 +539,62 @@
       });
     });
 
-    // -------- Home table (FIXED alignment: always drop time index column) --------
-    function loadCountryTable(fileText) {
-      let lines = fileText.trim().split('\n');
-      if (lines.length < 3) return;
+    // -------- HOME TABLE --------
+    function loadCountryTable(parsed) {
+      const header = parsed.header; // excludes index col
+      const rows = parsed.rows;     // excludes index col
 
-      // Header: first cell corresponds to time index (often empty / unnamed). Drop it ALWAYS.
-      let headerParts = lines[0].split('\t').map(s => String(s || '').replace(/^\uFEFF/, '').trim());
-      let headerNoDate = headerParts.slice(1);
+      let lastIdx = rows.length - 1;
+      let idx30 = rows.length - 22;
+      let idx365 = rows.length - 261;
 
-      // Data: drop first column (date) ALWAYS.
-      let dataRows = lines.slice(1).map(row => row.split('\t').slice(1));
+      // column map
+      let col = {};
+      header.forEach((name, i) => { col[String(name).trim().toLowerCase()] = i; });
 
-      let lastIdx = dataRows.length - 1;
-      let idx30 = dataRows.length - 22;
-      let idx365 = dataRows.length - 261;
-
-      const countryBlocks = [
-        ["united_states", "canada"],
-        ["austria", "belgium", "france", "germany", "greece", "italy", "netherlands", "spain", "poland", "united_kingdom"],
-        ["china", "japan", "south_korea", "australia"],
-        ["brazil", "mexico"],
-        ["israel", "turkey", "egypt", "south_africa"]
-      ];
-      const globalBlock = ["global", "global_weighted"];
-
-      let countryIndexMap = {};
-      headerNoDate.forEach((name, idx) => { countryIndexMap[name.trim().toLowerCase()] = idx; });
-
-      function diffSpan(aStr, bStr) {
-        let a = parseFloat(aStr), b = parseFloat(bStr);
-        if (isNaN(a) || isNaN(b)) return "";
-        let d = a - b;
-        return d >= 0 ? `<span style="color:red;">+${d.toFixed(1)}</span>` : `<span style="color:green;">${d.toFixed(1)}</span>`;
+      function get(rowIdx, key) {
+        const j = col[String(key).trim().toLowerCase()];
+        if (j === undefined) return "";
+        if (rowIdx < 0 || rowIdx >= rows.length) return "";
+        const v = rows[rowIdx][j];
+        return (v === undefined || v === null) ? "" : String(v).trim();
       }
 
       let tableHTML = '';
       tableHTML += '<tr><th>Country</th><th>I3E</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th></tr>';
 
       countryBlocks.forEach((block) => {
-        block.forEach((code, countryIdx) => {
-          let i = countryIndexMap[code];
-          if (i === undefined) return;
+        block.forEach((code, idxInBlock) => {
+          const value = get(lastIdx, code);
+          const prev  = get(lastIdx - 1, code);
+          const v30   = get(idx30, code);
+          const v365  = get(idx365, code);
 
-          let countryName = formatCountryName(headerNoDate[i] || code);
-          let value = (dataRows[lastIdx] && dataRows[lastIdx][i]) ? String(dataRows[lastIdx][i]).trim() : "";
-          let prevValue = (dataRows[lastIdx - 1] && dataRows[lastIdx - 1][i]) ? String(dataRows[lastIdx - 1][i]).trim() : "";
-          let val30 = (idx30 >= 0 && dataRows[idx30] && dataRows[idx30][i] !== undefined) ? String(dataRows[idx30][i]).trim() : "";
-          let val365 = (idx365 >= 0 && dataRows[idx365] && dataRows[idx365][i] !== undefined) ? String(dataRows[idx365][i]).trim() : "";
-
-          const isLastInBlock = (countryIdx === block.length - 1);
+          const isLastInBlock = (idxInBlock === block.length - 1);
           const tdStyle = isLastInBlock ? ' style="border-bottom: 2px solid #bbb;"' : '';
 
           tableHTML += `<tr>
-            <td${tdStyle}>${countryName}</td>
+            <td${tdStyle}>${formatCountryName(code)}</td>
             <td${tdStyle}>${value}</td>
-            <td${tdStyle}>${diffSpan(value, prevValue)}</td>
-            <td${tdStyle}>${diffSpan(value, val30)}</td>
-            <td${tdStyle}>${diffSpan(value, val365)}</td>
+            <td${tdStyle}>${diffSpan(value, prev, 1)}</td>
+            <td${tdStyle}>${diffSpan(value, v30, 1)}</td>
+            <td${tdStyle}>${diffSpan(value, v365, 1)}</td>
           </tr>`;
         });
       });
 
       globalBlock.forEach(code => {
-        let i = countryIndexMap[code];
-        if (i === undefined) return;
-
-        let countryName = formatCountryName(headerNoDate[i] || code);
-        let value = (dataRows[lastIdx] && dataRows[lastIdx][i]) ? String(dataRows[lastIdx][i]).trim() : "";
-        let prevValue = (dataRows[lastIdx - 1] && dataRows[lastIdx - 1][i]) ? String(dataRows[lastIdx - 1][i]).trim() : "";
-        let val30 = (idx30 >= 0 && dataRows[idx30] && dataRows[idx30][i] !== undefined) ? String(dataRows[idx30][i]).trim() : "";
-        let val365 = (idx365 >= 0 && dataRows[idx365] && dataRows[idx365][i] !== undefined) ? String(dataRows[idx365][i]).trim() : "";
+        const value = get(lastIdx, code);
+        const prev  = get(lastIdx - 1, code);
+        const v30   = get(idx30, code);
+        const v365  = get(idx365, code);
 
         tableHTML += `<tr style="font-weight: bold;">
-          <td>${countryName}</td>
+          <td>${formatCountryName(code)}</td>
           <td>${value}</td>
-          <td>${diffSpan(value, prevValue)}</td>
-          <td>${diffSpan(value, val30)}</td>
-          <td>${diffSpan(value, val365)}</td>
+          <td>${diffSpan(value, prev, 1)}</td>
+          <td>${diffSpan(value, v30, 1)}</td>
+          <td>${diffSpan(value, v365, 1)}</td>
         </tr>`;
       });
 
@@ -565,54 +602,39 @@
       document.getElementById('table-container').innerHTML = fullHTML;
     }
 
-    // -------- Subindex table (FIXED alignment: always drop time index column) --------
+    // -------- SUBINDEX TABLE --------
     function loadSubindexTable() {
-      fetchTextWithFallback(['subindex.txt', 'Subindex.txt'])
+      fetch('subindex.txt')
+        .then(r => r.text())
         .then(text => {
-          let lines = text.trim().split('\n');
-          if (lines.length < 3) return;
+          const parsed = parseTabFile(text);
+          if (!parsed) return;
 
-          subindexTime = (lines[lines.length - 1].split('\t')[0] || "").trim();
+          subindexTime = (parsed.dates && parsed.dates.length) ? parsed.dates[parsed.dates.length - 1] : "";
 
-          // Header: drop first cell (time index header - usually empty/unnamed)
-          let headerParts = lines[0].split('\t').map(s => String(s || '').replace(/^\uFEFF/, '').trim());
-          let headerNoDate = headerParts.slice(1);
+          const header = parsed.header; // excludes index col
+          const rows = parsed.rows;     // excludes index col
 
-          // Data: drop first col (date/time index)
-          let dataRows = lines.slice(1).map(row => row.split('\t').slice(1));
+          let lastIdx = rows.length - 1;
+          let idx30 = rows.length - 22;
+          let idx365 = rows.length - 261;
 
-          let lastIdx = dataRows.length - 1;
-          let idx30 = dataRows.length - 22;
-          let idx365 = dataRows.length - 261;
+          let col = {};
+          header.forEach((name, i) => { col[String(name).trim().toLowerCase()] = i; });
 
-          const countryBlocks = [
-            ["united_states", "canada"],
-            ["austria", "belgium", "france", "germany", "greece", "italy", "netherlands", "spain", "poland", "united_kingdom"],
-            ["china", "japan", "south_korea", "australia"],
-            ["brazil", "mexico"],
-            ["israel", "turkey", "egypt", "south_africa"]
-          ];
-          const globalCountry = "global";
-
-          // Map columns case-insensitively (this avoids issues like "Brent" vs "brent")
-          let colIndexLower = {};
-          headerNoDate.forEach((name, idx) => { colIndexLower[name.toLowerCase()] = idx; });
-
-          function safeGet(rowIdx, colName) {
-            const key = String(colName).trim().toLowerCase();
-            const j = colIndexLower[key];
+          function get(rowIdx, key) {
+            const j = col[String(key).trim().toLowerCase()];
             if (j === undefined) return "";
-            if (rowIdx < 0 || rowIdx >= dataRows.length) return "";
-            const v = dataRows[rowIdx][j];
+            if (rowIdx < 0 || rowIdx >= rows.length) return "";
+            const v = rows[rowIdx][j];
             return (v === undefined || v === null) ? "" : String(v).trim();
           }
 
-          function diffSpan(aStr, bStr) {
-            let a = parseFloat(aStr), b = parseFloat(bStr);
-            if (isNaN(a) || isNaN(b)) return "";
-            let d = a - b;
-            return d >= 0 ? `<span style="color:red;">+${d.toFixed(1)}</span>` : `<span style="color:green;">${d.toFixed(1)}</span>`;
-          }
+          // Brent series (column name in file: brent)
+          const brentVal  = get(lastIdx, "brent");
+          const brentPrev = get(lastIdx - 1, "brent");
+          const brent30v  = get(idx30, "brent");
+          const brent365v = get(idx365, "brent");
 
           let tableHTML = '';
           tableHTML += `<tr>
@@ -623,59 +645,54 @@
             <th>Brent</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>
           </tr>`;
 
-          // Brent series (per your instruction: column name is "brent" in the file)
-          const brentVal  = safeGet(lastIdx, "brent");
-          const brentPrev = safeGet(lastIdx - 1, "brent");
-          const brent30v  = safeGet(idx30, "brent");
-          const brent365v = safeGet(idx365, "brent");
-
           function addCountryRow(code, opts) {
             const bold = opts && opts.bold;
             const isLastInBlock = opts && opts.blockSeparator;
 
-            const nameCell = formatCountryName(code);
-            const prefix = code + "_";
+            const idxKey  = code + "_idx";
+            const bondKey = code + "_bond";
+            const fxKey   = code + "_fx";
 
-            const idxVal   = safeGet(lastIdx, prefix + "idx");
-            const idxPrev  = safeGet(lastIdx - 1, prefix + "idx");
-            const idx30v   = safeGet(idx30, prefix + "idx");
-            const idx365v  = safeGet(idx365, prefix + "idx");
+            const idxVal   = get(lastIdx, idxKey);
+            const idxPrev  = get(lastIdx - 1, idxKey);
+            const idx30v   = get(idx30, idxKey);
+            const idx365v  = get(idx365, idxKey);
 
-            const bondVal  = safeGet(lastIdx, prefix + "bond");
-            const bondPrev = safeGet(lastIdx - 1, prefix + "bond");
-            const bond30v  = safeGet(idx30, prefix + "bond");
-            const bond365v = safeGet(idx365, prefix + "bond");
+            const bondVal  = get(lastIdx, bondKey);
+            const bondPrev = get(lastIdx - 1, bondKey);
+            const bond30v  = get(idx30, bondKey);
+            const bond365v = get(idx365, bondKey);
 
-            const fxVal    = safeGet(lastIdx, prefix + "fx");
-            const fxPrev   = safeGet(lastIdx - 1, prefix + "fx");
-            const fx30v    = safeGet(idx30, prefix + "fx");
-            const fx365v   = safeGet(idx365, prefix + "fx");
+            const fxVal    = get(lastIdx, fxKey);
+            const fxPrev   = get(lastIdx - 1, fxKey);
+            const fx30v    = get(idx30, fxKey);
+            const fx365v   = get(idx365, fxKey);
 
             const rowStyle = bold ? ' style="font-weight:bold;"' : '';
             const tdStyle  = isLastInBlock ? ' style="border-bottom: 2px solid #bbb;"' : '';
 
             tableHTML += `<tr${rowStyle}>
-              <td${tdStyle}>${nameCell}</td>
+              <td${tdStyle}>${formatCountryName(code)}</td>
 
               <td${tdStyle}>${idxVal}</td>
-              <td${tdStyle}>${diffSpan(idxVal, idxPrev)}</td>
-              <td${tdStyle}>${diffSpan(idxVal, idx30v)}</td>
-              <td${tdStyle}>${diffSpan(idxVal, idx365v)}</td>
+              <td${tdStyle}>${diffSpan(idxVal, idxPrev, 1)}</td>
+              <td${tdStyle}>${diffSpan(idxVal, idx30v, 1)}</td>
+              <td${tdStyle}>${diffSpan(idxVal, idx365v, 1)}</td>
 
               <td${tdStyle}>${bondVal}</td>
-              <td${tdStyle}>${diffSpan(bondVal, bondPrev)}</td>
-              <td${tdStyle}>${diffSpan(bondVal, bond30v)}</td>
-              <td${tdStyle}>${diffSpan(bondVal, bond365v)}</td>
+              <td${tdStyle}>${diffSpan(bondVal, bondPrev, 1)}</td>
+              <td${tdStyle}>${diffSpan(bondVal, bond30v, 1)}</td>
+              <td${tdStyle}>${diffSpan(bondVal, bond365v, 1)}</td>
 
               <td${tdStyle}>${fxVal}</td>
-              <td${tdStyle}>${diffSpan(fxVal, fxPrev)}</td>
-              <td${tdStyle}>${diffSpan(fxVal, fx30v)}</td>
-              <td${tdStyle}>${diffSpan(fxVal, fx365v)}</td>
+              <td${tdStyle}>${diffSpan(fxVal, fxPrev, 1)}</td>
+              <td${tdStyle}>${diffSpan(fxVal, fx30v, 1)}</td>
+              <td${tdStyle}>${diffSpan(fxVal, fx365v, 1)}</td>
 
               <td${tdStyle}>${brentVal}</td>
-              <td${tdStyle}>${diffSpan(brentVal, brentPrev)}</td>
-              <td${tdStyle}>${diffSpan(brentVal, brent30v)}</td>
-              <td${tdStyle}>${diffSpan(brentVal, brent365v)}</td>
+              <td${tdStyle}>${diffSpan(brentVal, brentPrev, 1)}</td>
+              <td${tdStyle}>${diffSpan(brentVal, brent30v, 1)}</td>
+              <td${tdStyle}>${diffSpan(brentVal, brent365v, 1)}</td>
             </tr>`;
           }
 
@@ -709,17 +726,11 @@
           document.getElementById('table-subindex-container').innerHTML =
             `<div style="width:100%; overflow-x:auto;">${headerInfo}<table>${tableHTML}</table>${footerText}</div>`;
         })
-        .catch(err => console.error('Error loading subindex data:', err));
+        .catch(err => console.error('Error loading subindex.txt:', err));
     }
   </script>
 
   <script>
-    const columns = [
-      "australia", "austria", "belgium", "brazil", "canada", "china", "egypt", "france", "germany", "greece",
-      "israel", "italy", "japan", "mexico", "netherlands", "poland", "south_africa", "south_korea",
-      "spain", "turkey", "united_kingdom", "united_states", "global", "global_weighted"
-    ];
-
     document.addEventListener("DOMContentLoaded", () => {
       renderChart("chart-global", "global");
     });
@@ -735,17 +746,16 @@
         // Hide all charts
         document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
 
-        // Hide tables when selecting a chart
+        // Hide tables
         const tableDiv = document.getElementById('table-container');
         const tableSubDiv = document.getElementById('table-subindex-container');
         if (tableDiv) tableDiv.style.display = 'none';
         if (tableSubDiv) tableSubDiv.style.display = 'none';
 
-        // Restore content column (keeps layout consistent)
+        // Restore content column
         showContentAndResetLayout();
         document.getElementById('content').innerHTML = "";
 
-        // Show chart
         const chartDiv = document.getElementById(containerId);
         if (chartDiv) {
           chartDiv.style.display = 'block';
@@ -762,7 +772,6 @@
     });
   </script>
 
-  <!-- ✅ Global resize helpers so charts follow viewport changes/rotation -->
   <script>
     function resizeAllPlots() {
       if (!window.Plotly) return;
