@@ -355,6 +355,9 @@
   </div>
 
   <script>
+    // Track which top tab is currently active
+    var currentTab = "home";
+
     // Global date string shown in tabs
     var time = "";
 
@@ -375,9 +378,7 @@
                  .replace(/\b\w/g, c => c.toUpperCase());
     }
 
-    // ✅ HOME TABLE: reverted to the exact parsing approach from your "best before subindex" file:
-    // - remove empty header cell if present
-    // - drop date index cell from every row
+    // ✅ HOME TABLE
     function loadCountryTable() {
       fetch('i3e_countries.txt')
         .then(r => r.text())
@@ -474,15 +475,12 @@
 
     // ---------- SUBINDEX TABLE ----------
     function parseTSVDropIndex(text) {
-      // This enforces the same rule: first column is date index, not data.
       const lines = text.trim().split('\n').filter(l => l.trim().length > 0);
       if (lines.length < 2) return null;
 
       let header = lines[0].split('\t');
-      // If first header cell is empty, remove it (common when file starts with tab)
       if (header[0].trim() === '') header.shift();
 
-      // rows: drop first cell (date)
       const rows = lines.slice(1).map(line => line.split('\t').slice(1));
       return { header, rows };
     }
@@ -515,8 +513,7 @@
 
           function fmt(x) {
             if (x === null || x === undefined) return "";
-            const v = ("" + x).trim();
-            return v;
+            return ("" + x).trim();
           }
 
           function diffSpan(curr, past, decimals=1) {
@@ -539,7 +536,6 @@
           html += "<tr>";
           html += "<th>Country</th>";
 
-          // For each component: value + diffs
           const compHeaders = [
             { key: "idx",  label: "IDX"  },
             { key: "bond", label: "Bond" },
@@ -574,7 +570,6 @@
               html += `<td${tdStyle}>${diffSpan(vLast, v365)}</td>`;
             });
 
-            // Brent (same for all countries, but still show on each row)
             html += `<td${tdStyle}>${brentLast}</td>`;
             html += `<td${tdStyle}>${diffSpan(brentLast, brentPrev)}</td>`;
             html += `<td${tdStyle}>${diffSpan(brentLast, brent30)}</td>`;
@@ -585,12 +580,10 @@
 
           groups.forEach(group => {
             group.forEach((cc, idx) => {
-              const isEnd = (idx === group.length - 1);
-              addRow(cc, false, isEnd);
+              addRow(cc, false, idx === group.length - 1);
             });
           });
 
-          // global at end, bold like home table behavior
           addRow(globalCountry, true, false);
 
           html += "</table>";
@@ -607,20 +600,7 @@
       document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
     }
 
-    function showHome() {
-      document.getElementById('home-view').style.display = 'flex';
-      document.getElementById('subindex-view').style.display = 'none';
-      document.getElementById('table-container').style.display = 'block';
-      // Show default chart
-      hideAllCharts();
-      const globalChart = document.getElementById('chart-global');
-      globalChart.style.display = 'block';
-      renderChart("chart-global", "global");
-      if (window.Plotly) { setTimeout(() => { try { Plotly.Plots.resize(globalChart); } catch(e) {} }, 0); }
-    }
-
     function showSubindex() {
-      // hide home section (text+table) and charts, show subindex view
       document.getElementById('home-view').style.display = 'none';
       hideAllCharts();
       document.getElementById('subindex-view').style.display = 'block';
@@ -632,6 +612,8 @@
       link.addEventListener('click', function(e) {
         e.preventDefault();
         const tab = this.getAttribute('data-tab');
+        currentTab = tab;
+
         const contentDiv = document.getElementById('content');
         const tableDiv = document.getElementById('table-container');
 
@@ -709,21 +691,23 @@
     });
 
     // Sidebar: country chart selection
+    // ✅ FIX: Do NOT switch tabs/views when clicking countries.
+    // Only show the selected chart, and only show the home table if currentTab === "home".
     document.querySelectorAll('.sidebar a[data-country]').forEach(link => {
       link.addEventListener('click', function(e) {
         e.preventDefault();
 
-        // If user is in subindex view, switch back to home view automatically so charts make sense
-        document.getElementById('subindex-view').style.display = 'none';
-        document.getElementById('home-view').style.display = 'flex';
-
         const country = this.getAttribute('data-country');
         const containerId = `chart-${country}`;
 
-        // Hide table in non-home navigation context? keep it visible on home
-        document.getElementById('table-container').style.display = 'block';
+        // Show/hide the home table depending on active tab
+        const tableDiv = document.getElementById('table-container');
+        if (tableDiv) {
+          tableDiv.style.display = (currentTab === "home") ? "block" : "none";
+        }
 
-        // Hide all charts, show selected
+        // Do NOT touch home-view/subindex-view displays here.
+        // Just switch chart.
         hideAllCharts();
         const chartDiv = document.getElementById(containerId);
         if (chartDiv) {
@@ -740,6 +724,7 @@
 
     // Initial render
     document.addEventListener("DOMContentLoaded", () => {
+      currentTab = "home";
       renderChart("chart-global", "global");
     });
 
