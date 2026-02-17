@@ -92,11 +92,7 @@
       overflow-y: auto;
       border-right: 1px solid #ddd;
     }
-    .sidebar h2 {
-      font-size: 16px;
-      margin-top: 0;
-      margin-bottom: 8px;
-    }
+    .sidebar h2 { font-size: 16px; margin-top: 0; margin-bottom: 8px; }
     .sidebar a {
       display: block;
       padding: 4px 8px;
@@ -301,7 +297,6 @@
       </div>
     </div>
 
-    <!-- Content and table container side by side -->
     <div class="content-wrapper" id="content-wrapper">
       <div class="content" id="content">
         <h1>IESE I3E Economic Uncertainty Index</h1>
@@ -312,9 +307,7 @@
         <p>
           The IESE I3E Economic Uncertainty Index offers a quantifiable and bias-free benchmark for comparing uncertainty levels across nations, providing insight for research and decision-making.
         </p>
-        <p>
-          The index is computed daily, using the variation rates of four key variables in each country:
-        </p>
+        <p>The index is computed daily, using the variation rates of four key variables in each country:</p>
         <ul>
           <li>Domestic Stock Index</li>
           <li>Domestic 10-year government bond yields</li>
@@ -365,25 +358,21 @@
   </div>
 
   <script>
-    // Set global variables to data dates
+    // Dates
     var time = "";
     var subindexTime = "";
 
     fetch('i3e_countries.txt')
-      .then(response => response.text())
+      .then(r => r.text())
       .then(text => {
         let lines = text.trim().split('\n');
         if (lines.length < 2) return;
-        let lastLine = lines[lines.length - 1];
-        let firstCell = lastLine.split('\t')[0].trim();
-        time = firstCell;
+        time = (lines[lines.length - 1].split('\t')[0] || "").trim();
         loadCountryTable();
       })
-      .catch(error => console.error('Error loading time from country data:', error));
+      .catch(err => console.error('Error loading time from country data:', err));
 
-    var initialContent = document.getElementById('content').innerHTML;
     var contentWrapper = document.getElementById('content-wrapper');
-
     document.getElementById('table-container').style.display = 'block';
     document.getElementById('table-subindex-container').style.display = 'none';
 
@@ -391,9 +380,7 @@
       const contentDiv = document.getElementById('content');
       contentDiv.style.display = 'block';
       contentWrapper.style.gap = '80px';
-      // restore original content only when needed (Home uses reload anyway)
     }
-
     function hideContentForWideTable() {
       const contentDiv = document.getElementById('content');
       contentDiv.style.display = 'none';
@@ -415,8 +402,8 @@
           contentDiv.innerHTML = `<h2 style="text-align: left;">I3E Global Indices</h2>`;
           tableDiv.style.display = 'none';
           tableSubDiv.style.display = 'none';
+          document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
         } else if (linkText === 'Subindex') {
-          // Hide content column so table can start at the far left (no wasted space)
           hideContentForWideTable();
           tableDiv.style.display = 'none';
           tableSubDiv.style.display = 'block';
@@ -428,7 +415,7 @@
             <p><a href="i3e_global.txt" target="_blank">DATA</a> - Download I3E global data (txt). Since 1990-01-01. Updated daily (${time}).</p>
             <p><a href="i3e_global_weighted.txt" target="_blank">DATA</a> - Download I3E global weighted data (txt). Since 1990-01-01. Updated daily (${time}).</p>
             <p><a href="i3e_countries.txt" target="_blank">DATA</a> - Download I3E country data (txt). Since 1990-01-01. Updated daily (${time}).</p>
-            <p><a href="Subindex.txt" target="_blank">DATA</a> - Download Subindex data (txt). Since 1990-01-01. Updated daily (${subindexTime || time}).</p>
+            <p><a href="subindex.txt" target="_blank">DATA</a> - Download Subindex data (txt). Since 1990-01-01. Updated daily (${subindexTime || time}).</p>
           `;
           tableDiv.style.display = 'none';
           tableSubDiv.style.display = 'none';
@@ -470,6 +457,7 @@
           contentDiv.innerHTML = "";
           tableDiv.style.display = 'none';
           tableSubDiv.style.display = 'none';
+          document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
         }
       });
     });
@@ -479,6 +467,7 @@
                  .replace(/\b\w/g, c => c.toUpperCase());
     }
 
+    // -------- Home table --------
     function loadCountryTable() {
       fetch('i3e_countries.txt')
         .then(response => response.text())
@@ -504,9 +493,7 @@
           const globalBlock = ["global", "global_weighted"];
 
           let countryIndexMap = {};
-          headerParts.forEach((name, idx) => {
-            countryIndexMap[name.trim().toLowerCase()] = idx;
-          });
+          headerParts.forEach((name, idx) => { countryIndexMap[name.trim().toLowerCase()] = idx; });
 
           let tableHTML = '';
           tableHTML += '<tr><th>Country</th><th>I3E</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th></tr>';
@@ -529,26 +516,18 @@
 
               let diff1d = "";
               if (!isNaN(numValue) && !isNaN(numPrevValue)) {
-                let diff1dValue = numValue - numPrevValue;
-                diff1d = diff1dValue >= 0
-                  ? `<span style="color:red;">+${diff1dValue.toFixed(1)}</span>`
-                  : `<span style="color:green;">${diff1dValue.toFixed(1)}</span>`;
+                let d = numValue - numPrevValue;
+                diff1d = d >= 0 ? `<span style="color:red;">+${d.toFixed(1)}</span>` : `<span style="color:green;">${d.toFixed(1)}</span>`;
               }
-
               let diff30d = "";
               if (!isNaN(numValue) && !isNaN(numVal30)) {
-                let diff30dValue = numValue - numVal30;
-                diff30d = diff30dValue >= 0
-                  ? `<span style="color:red;">+${diff30dValue.toFixed(1)}</span>`
-                  : `<span style="color:green;">${diff30dValue.toFixed(1)}</span>`;
+                let d = numValue - numVal30;
+                diff30d = d >= 0 ? `<span style="color:red;">+${d.toFixed(1)}</span>` : `<span style="color:green;">${d.toFixed(1)}</span>`;
               }
-
               let diff365d = "";
               if (!isNaN(numValue) && !isNaN(numVal365)) {
-                let diff365dValue = numValue - numVal365;
-                diff365d = diff365dValue >= 0
-                  ? `<span style="color:red;">+${diff365dValue.toFixed(1)}</span>`
-                  : `<span style="color:green;">${diff365dValue.toFixed(1)}</span>`;
+                let d = numValue - numVal365;
+                diff365d = d >= 0 ? `<span style="color:red;">+${d.toFixed(1)}</span>` : `<span style="color:green;">${d.toFixed(1)}</span>`;
               }
 
               const isLastInBlock = (countryIdx === block.length - 1);
@@ -567,6 +546,7 @@
           globalBlock.forEach(code => {
             let i = countryIndexMap[code];
             if (i === undefined) return;
+
             let countryName = formatCountryName(headerParts[i].trim());
             let value = dataRows[lastIdx][i] ? dataRows[lastIdx][i].trim() : "";
             let prevValue = (lastIdx - 1 >= 0 && dataRows[lastIdx - 1][i]) ? dataRows[lastIdx - 1][i].trim() : "";
@@ -580,24 +560,18 @@
 
             let diff1d = "";
             if (!isNaN(numValue) && !isNaN(numPrevValue)) {
-              let diff1dValue = numValue - numPrevValue;
-              diff1d = diff1dValue >= 0
-                ? `<span style="color:red;">+${diff1dValue.toFixed(1)}</span>`
-                : `<span style="color:green;">${diff1dValue.toFixed(1)}</span>`;
+              let d = numValue - numPrevValue;
+              diff1d = d >= 0 ? `<span style="color:red;">+${d.toFixed(1)}</span>` : `<span style="color:green;">${d.toFixed(1)}</span>`;
             }
             let diff30d = "";
             if (!isNaN(numValue) && !isNaN(numVal30)) {
-              let diff30dValue = numValue - numVal30;
-              diff30d = diff30dValue >= 0
-                ? `<span style="color:red;">+${diff30dValue.toFixed(1)}</span>`
-                : `<span style="color:green;">${diff30dValue.toFixed(1)}</span>`;
+              let d = numValue - numVal30;
+              diff30d = d >= 0 ? `<span style="color:red;">+${d.toFixed(1)}</span>` : `<span style="color:green;">${d.toFixed(1)}</span>`;
             }
             let diff365d = "";
             if (!isNaN(numValue) && !isNaN(numVal365)) {
-              let diff365dValue = numValue - numVal365;
-              diff365d = diff365dValue >= 0
-                ? `<span style="color:red;">+${diff365dValue.toFixed(1)}</span>`
-                : `<span style="color:green;">${diff365dValue.toFixed(1)}</span>`;
+              let d = numValue - numVal365;
+              diff365d = d >= 0 ? `<span style="color:red;">+${d.toFixed(1)}</span>` : `<span style="color:green;">${d.toFixed(1)}</span>`;
             }
 
             tableHTML += `<tr style="font-weight: bold;">
@@ -615,29 +589,27 @@
         .catch(error => console.error('Error loading country data:', error));
     }
 
-    // -----------------------------
-    // Subindex table (Subindex.txt)
-    // -----------------------------
+    // -------- Subindex table --------
     function loadSubindexTable() {
-      fetch('Subindex.txt')
-        .then(response => response.text())
+      fetch('subindex.txt')
+        .then(r => r.text())
         .then(text => {
           let lines = text.trim().split('\n');
           if (lines.length < 3) return;
 
-          // Last date for the subindex file
-          let lastLine = lines[lines.length - 1];
-          subindexTime = (lastLine.split('\t')[0] || "").trim();
+          // Date is first column in each row
+          subindexTime = (lines[lines.length - 1].split('\t')[0] || "").trim();
 
-          let headerParts = lines[0].split('\t');
-          if (headerParts[0].trim() === '') headerParts.shift();
+          // IMPORTANT FIX: header + data must align. We ALWAYS drop the first header cell (date/time label).
+          let headerParts = lines[0].split('\t').map(s => String(s || '').replace(/^\uFEFF/, '').trim());
+          let headerNoDate = headerParts.slice(1);
 
-          let dataRows = lines.slice(1).map(row => row.split('\t').slice(1));
+          let rowsSplit = lines.slice(1).map(row => row.split('\t'));
+          let dataRows = rowsSplit.map(parts => parts.slice(1)); // drop date column
           let lastIdx = dataRows.length - 1;
           let idx30 = dataRows.length - 22;
           let idx365 = dataRows.length - 261;
 
-          // Ordering (same as Home) + global at end
           const countryBlocks = [
             ["united_states", "canada"],
             ["austria", "belgium", "france", "germany", "greece", "italy", "netherlands", "spain", "poland", "united_kingdom"],
@@ -647,19 +619,17 @@
           ];
           const globalCountry = "global";
 
-          // Header mapping (case-insensitive, also trims possible BOM)
+          // Case-insensitive column index map
           let colIndexLower = {};
-          headerParts.forEach((name, idx) => {
-            const cleaned = String(name).replace(/^\uFEFF/, '').trim(); // remove BOM if present
-            colIndexLower[cleaned.toLowerCase()] = idx;
-          });
+          headerNoDate.forEach((name, idx) => { colIndexLower[name.toLowerCase()] = idx; });
 
           function safeGet(rowIdx, colName) {
             const key = String(colName).trim().toLowerCase();
-            let j = colIndexLower[key];
+            const j = colIndexLower[key];
             if (j === undefined) return "";
             if (rowIdx < 0 || rowIdx >= dataRows.length) return "";
-            return (dataRows[rowIdx][j] !== undefined) ? String(dataRows[rowIdx][j]).trim() : "";
+            const v = dataRows[rowIdx][j];
+            return (v === undefined || v === null) ? "" : String(v).trim();
           }
 
           function formatDiff(currentStr, pastStr) {
@@ -672,7 +642,6 @@
               : `<span style="color:green;">${d.toFixed(1)}</span>`;
           }
 
-          // Build header
           let tableHTML = '';
           tableHTML += `<tr>
             <th>Country</th>
@@ -681,6 +650,13 @@
             <th>FX</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>
             <th>Brent</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>
           </tr>`;
+
+          // Brent column is "brent" in the file (per your instruction). Use its own time series.
+          const brentKey = "brent";
+          const brentVal  = safeGet(lastIdx, brentKey);
+          const brentPrev = safeGet(lastIdx - 1, brentKey);
+          const brent30v  = safeGet(idx30, brentKey);
+          const brent365v = safeGet(idx365, brentKey);
 
           function addCountryRow(code, opts) {
             const bold = opts && opts.bold;
@@ -707,13 +683,6 @@
             const fxPrev   = safeGet(lastIdx - 1, fxCol);
             const fx30v    = safeGet(idx30, fxCol);
             const fx365v   = safeGet(idx365, fxCol);
-
-            // Brent is common (same for all rows), but computed using its own time series
-            const brentCol = "Brent";
-            const brentVal   = safeGet(lastIdx, brentCol);
-            const brentPrev  = safeGet(lastIdx - 1, brentCol);
-            const brent30v   = safeGet(idx30, brentCol);
-            const brent365v  = safeGet(idx365, brentCol);
 
             const rowStyle = bold ? ' style="font-weight:bold;"' : '';
             const tdStyle  = isLastInBlock ? ' style="border-bottom: 2px solid #bbb;"' : '';
@@ -743,14 +712,13 @@
             </tr>`;
           }
 
-          // Add blocks with separators like Home
           countryBlocks.forEach((block) => {
             block.forEach((code, idxInBlock) => {
               addCountryRow(code, { blockSeparator: idxInBlock === block.length - 1 });
             });
           });
 
-          // Add global at end (bold)
+          // Global at end (bold)
           addCountryRow(globalCountry, { bold: true, blockSeparator: false });
 
           const headerInfo = `
@@ -760,12 +728,11 @@
             </div>
           `;
 
-          // Text moved BELOW the table (per request)
           const footerText = `
             <div style="font-size:14px; margin-top:12px; max-width: 1200px;">
               <h2 style="margin: 6px 0 6px 0;">Subindex</h2>
               <p style="margin: 0;">
-                This table reports the latest values and changes (Δ1D, Δ1M, Δ1Y) for the three subcomponents used in the I3E construction:
+                This table reports the latest values and changes (Δ1D, Δ1M, Δ1Y) for the three subcomponents:
                 <strong>Stock Index (idx)</strong>, <strong>10-year Bond Yield (bond)</strong>, and <strong>Exchange Rate (fx)</strong>.
                 It also reports <strong>Brent</strong> (common to all countries).
               </p>
@@ -775,7 +742,7 @@
           document.getElementById('table-subindex-container').innerHTML =
             `<div style="width:100%; overflow-x:auto;">${headerInfo}<table>${tableHTML}</table>${footerText}</div>`;
         })
-        .catch(error => console.error('Error loading subindex data:', error));
+        .catch(err => console.error('Error loading subindex data:', err));
     }
   </script>
 
@@ -802,17 +769,17 @@
         // Hide all charts
         document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
 
-        // Hide tables when user selects a chart
+        // Hide tables when selecting a chart
         const tableDiv = document.getElementById('table-container');
         const tableSubDiv = document.getElementById('table-subindex-container');
         if (tableDiv) tableDiv.style.display = 'none';
         if (tableSubDiv) tableSubDiv.style.display = 'none';
 
-        // Restore content column for chart browsing (optional but keeps layout consistent)
+        // Restore content column (optional, keeps layout consistent)
         showContentAndResetLayout();
         document.getElementById('content').innerHTML = "";
 
-        // Show this one
+        // Show chart
         const chartDiv = document.getElementById(containerId);
         if (chartDiv) {
           chartDiv.style.display = 'block';
