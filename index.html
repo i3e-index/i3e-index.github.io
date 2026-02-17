@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Google tag (gtag.js) -->
+  <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-2429LYJSNH"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -54,6 +54,7 @@
   }
   </script>
 
+  <!-- Load Plotly and Custom Charts -->
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
   <!-- 🔧 Shim: force responsive plots + immediate resize after newPlot -->
@@ -100,7 +101,6 @@
       font-size: 14px;
     }
     .sidebar a:hover { background-color: #FF3B30; color: white; }
-
     .main {
       flex-grow: 1;
       max-width: 1700px;
@@ -120,8 +120,7 @@
       justify-content: space-between;
       align-items: center;
     }
-    .header-top .title,
-    .header-top .icdm { font-size: 16px; font-weight: bold; }
+    .header-top .title, .header-top .icdm { font-size: 16px; font-weight: bold; }
     .header-bottom {
       display: flex;
       justify-content: space-between;
@@ -143,7 +142,7 @@
       display: flex;
       flex-direction: row;
       align-items: flex-start;
-      gap: 80px;
+      gap: 40px;
       margin-top: 20px;
     }
     .content {
@@ -151,11 +150,9 @@
       text-align: justify;
       font-size: 13px;
     }
-    .content p { font-size: 15px; }
-    .content li { font-size: 15px; }
-
-    #table-container, #table-subindex-container { min-width: 200px; }
-    #table-container table, #table-subindex-container table {
+    .content p, .content li { font-size: 15px; }
+    #table-container { min-width: 200px; }
+    #table-container table, #subindex-table-container table {
       width: 100%;
       border-collapse: collapse;
       border: none;
@@ -164,7 +161,7 @@
       margin-bottom: 20px;
     }
     #table-container th, #table-container td,
-    #table-subindex-container th, #table-subindex-container td {
+    #subindex-table-container th, #subindex-table-container td {
       border-top: 1px solid #ddd;
       border-bottom: 1px solid #ddd;
       border-left: none;
@@ -173,7 +170,7 @@
       text-align: left;
       white-space: nowrap;
     }
-    #table-container th, #table-subindex-container th {
+    #table-container th, #subindex-table-container th {
       background-color: #FF3B30;
       color: white;
       font-weight: bold;
@@ -181,7 +178,11 @@
       top: 0;
       z-index: 1;
     }
+    h1 { color: #333333; font-size: 18px; }
+    h2 { color: #333333; font-size: 16px; }
+    p { line-height: 1.6; color: #444; }
 
+    /* Plotly containers */
     .plot-container {
       width: 100%;
       max-width: none;
@@ -194,12 +195,12 @@
       max-width: 100% !important;
     }
 
+    /* Mobile adjustments */
     @media (max-width: 1000px) {
       .content-wrapper { flex-direction: column; gap: 30px; }
-      #table-container, #table-subindex-container { width: 100%; min-width: 0; margin: 0 auto; overflow-x: auto; }
+      #table-container { width: 100%; min-width: 0; margin: 0 auto; }
       .content { width: 100%; max-width: 100%; }
     }
-
     @media (max-width: 768px) {
       body { flex-direction: column; }
       .sidebar {
@@ -208,11 +209,7 @@
         border-right: none;
         border-bottom: 1px solid #ddd;
       }
-      .main {
-        margin: 0;
-        padding: 0;
-        max-width: none;
-      }
+      .main { margin: 0; padding: 0; max-width: none; }
       .header { max-width: none; margin-left: 0; box-sizing: border-box; }
       .plot-container {
         width: 100vw;
@@ -220,6 +217,21 @@
         margin-right: calc(50% - 50vw);
         height: 70vh;
       }
+    }
+
+    /* Subindex tab layout (full width table, text under table) */
+    #subindex-view {
+      display: none;
+      margin-top: 20px;
+    }
+    #subindex-table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+    }
+    #subindex-text {
+      margin-top: 10px;
+      font-size: 15px;
+      color: #444;
     }
   </style>
 </head>
@@ -262,18 +274,19 @@
       </div>
       <div class="header-bottom">
         <div class="nav">
-          <a href="#">Home</a>
-          <a href="#">Global Indices</a>
-          <a href="#">Subindex</a>
-          <a href="#">Data</a>
-          <a href="#">Research</a>
-          <a href="#">Contact</a>
+          <a href="#" data-tab="home">Home</a>
+          <a href="#" data-tab="global-indices">Global Indices</a>
+          <a href="#" data-tab="subindex">Subindex</a>
+          <a href="#" data-tab="data">Data</a>
+          <a href="#" data-tab="research">Research</a>
+          <a href="#" data-tab="contact">Contact</a>
         </div>
         <div class="business">IESE Business School</div>
       </div>
     </div>
 
-    <div class="content-wrapper" id="content-wrapper">
+    <!-- Home content + home table -->
+    <div class="content-wrapper" id="home-view">
       <div class="content" id="content">
         <h1>IESE I3E Economic Uncertainty Index</h1>
         <p>
@@ -300,7 +313,18 @@
       </div>
 
       <div id="table-container"></div>
-      <div id="table-subindex-container" style="display:none;"></div>
+    </div>
+
+    <!-- Subindex tab view -->
+    <div id="subindex-view">
+      <div id="subindex-table-wrapper">
+        <div id="subindex-table-container"></div>
+      </div>
+      <div id="subindex-text">
+        <strong>Subindex</strong><br>
+        This table reports the latest values of the three subcomponents (IDX, Bond, FX) for each country, plus Brent.
+        Each subcomponent shows the last value and the differences versus 1 day, 1 month, and 1 year ago (using the time index).
+      </div>
     </div>
 
     <!-- Chart containers -->
@@ -331,380 +355,335 @@
   </div>
 
   <script>
+    // Global date string shown in tabs
     var time = "";
-    var subindexTime = "";
 
-    const contentWrapper = document.getElementById('content-wrapper');
-
-    function showContentAndResetLayout() {
-      const contentDiv = document.getElementById('content');
-      contentDiv.style.display = 'block';
-      contentWrapper.style.gap = '80px';
-    }
-    function hideContentForWideTable() {
-      const contentDiv = document.getElementById('content');
-      contentDiv.style.display = 'none';
-      contentWrapper.style.gap = '0px';
-    }
+    // Load "time" from i3e_countries.txt (last row date)
+    fetch('i3e_countries.txt')
+      .then(r => r.text())
+      .then(text => {
+        let lines = text.trim().split('\n');
+        if (lines.length < 2) return;
+        let lastLine = lines[lines.length - 1];
+        time = lastLine.split('\t')[0].trim();
+        loadCountryTable(); // build home table after time loaded
+      })
+      .catch(err => console.error('Error loading time from country data:', err));
 
     function formatCountryName(name) {
       return name.replace(/_/g, ' ')
                  .replace(/\b\w/g, c => c.toUpperCase());
     }
 
-    function isLikelyDateString(s) {
-      if (!s) return false;
-      const t = String(s).trim();
-      return /^\d{4}[-\/]\d{2}[-\/]\d{2}(\s+\d{2}:\d{2}(:\d{2})?)?$/.test(t);
+    // ✅ HOME TABLE: reverted to the exact parsing approach from your "best before subindex" file:
+    // - remove empty header cell if present
+    // - drop date index cell from every row
+    function loadCountryTable() {
+      fetch('i3e_countries.txt')
+        .then(r => r.text())
+        .then(text => {
+          let lines = text.trim().split('\n');
+          if (lines.length < 3) return;
+
+          let headerParts = lines[0].split('\t');
+          if (headerParts[0].trim() === '') headerParts.shift();
+
+          // drop date index column for all rows
+          let dataRows = lines.slice(1).map(row => row.split('\t').slice(1));
+          let lastIdx = dataRows.length - 1;
+          let idx30 = dataRows.length - 22;
+          let idx365 = dataRows.length - 261;
+
+          const countryBlocks = [
+            ["united_states", "canada"],
+            ["austria", "belgium", "france", "germany", "greece", "italy", "netherlands", "spain", "poland", "united_kingdom"],
+            ["china", "japan", "south_korea", "australia"],
+            ["brazil", "mexico"],
+            ["israel", "turkey", "egypt", "south_africa"]
+          ];
+          const globalBlock = ["global", "global_weighted"];
+
+          let countryIndexMap = {};
+          headerParts.forEach((name, idx) => {
+            countryIndexMap[name.trim().toLowerCase()] = idx;
+          });
+
+          let tableHTML = '';
+          tableHTML += '<tr><th>Country</th><th>I3E</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th></tr>';
+
+          function coloredDiff(curr, past) {
+            let a = parseFloat(curr), b = parseFloat(past);
+            if (isNaN(a) || isNaN(b)) return "";
+            let d = a - b;
+            return d >= 0
+              ? `<span style="color:red;">+${d.toFixed(1)}</span>`
+              : `<span style="color:green;">${d.toFixed(1)}</span>`;
+          }
+
+          countryBlocks.forEach(block => {
+            block.forEach((code, countryIdx) => {
+              let i = countryIndexMap[code];
+              if (i === undefined) return;
+
+              let countryName = formatCountryName(headerParts[i].trim());
+              let value = (dataRows[lastIdx][i] || "").trim();
+              let prevValue = (dataRows[lastIdx - 1]?.[i] || "").trim();
+              let val30 = (idx30 >= 0 ? (dataRows[idx30]?.[i] || "") : "").trim();
+              let val365 = (idx365 >= 0 ? (dataRows[idx365]?.[i] || "") : "").trim();
+
+              const isLastInBlock = (countryIdx === block.length - 1);
+              const tdStyle = isLastInBlock ? ' style="border-bottom: 2px solid #bbb;"' : '';
+
+              tableHTML += `<tr>
+                <td${tdStyle}>${countryName}</td>
+                <td${tdStyle}>${value}</td>
+                <td${tdStyle}>${coloredDiff(value, prevValue)}</td>
+                <td${tdStyle}>${coloredDiff(value, val30)}</td>
+                <td${tdStyle}>${coloredDiff(value, val365)}</td>
+              </tr>`;
+            });
+          });
+
+          globalBlock.forEach(code => {
+            let i = countryIndexMap[code];
+            if (i === undefined) return;
+
+            let countryName = formatCountryName(headerParts[i].trim());
+            let value = (dataRows[lastIdx][i] || "").trim();
+            let prevValue = (dataRows[lastIdx - 1]?.[i] || "").trim();
+            let val30 = (idx30 >= 0 ? (dataRows[idx30]?.[i] || "") : "").trim();
+            let val365 = (idx365 >= 0 ? (dataRows[idx365]?.[i] || "") : "").trim();
+
+            tableHTML += `<tr style="font-weight:bold;">
+              <td>${countryName}</td>
+              <td>${value}</td>
+              <td>${coloredDiff(value, prevValue)}</td>
+              <td>${coloredDiff(value, val30)}</td>
+              <td>${coloredDiff(value, val365)}</td>
+            </tr>`;
+          });
+
+          let fullHTML =
+            `<div style="font-size:14px; margin-bottom:10px;">Date: ${time}<br>I3E: last 1D: Δ1-day 1M: Δ1-month 1Y: Δ1-year</div>
+             <table>${tableHTML}</table>`;
+
+          document.getElementById('table-container').innerHTML = fullHTML;
+        })
+        .catch(err => console.error('Error loading country data:', err));
     }
 
-    // Robust parser:
-    // - drops first column ONLY if header[0] is empty OR first data cell looks like a date.
-    function parseTabFile(text) {
-      const lines = String(text || "").trim().split('\n').filter(l => l.length > 0);
+    // ---------- SUBINDEX TABLE ----------
+    function parseTSVDropIndex(text) {
+      // This enforces the same rule: first column is date index, not data.
+      const lines = text.trim().split('\n').filter(l => l.trim().length > 0);
       if (lines.length < 2) return null;
 
-      const splitRow = (line) => String(line).replace(/\r$/, '').split('\t');
+      let header = lines[0].split('\t');
+      // If first header cell is empty, remove it (common when file starts with tab)
+      if (header[0].trim() === '') header.shift();
 
-      let rawHeader = splitRow(lines[0]).map(s => String(s || '').replace(/^\uFEFF/, '').trim());
-      let rawData = lines.slice(1).map(splitRow);
-
-      const headerFirst = (rawHeader[0] || "").trim();
-      const firstDataCell = rawData[0] && rawData[0][0] ? String(rawData[0][0]).trim() : "";
-
-      const hasIndexCol = (headerFirst === "") || isLikelyDateString(firstDataCell);
-
-      let dates = rawData.map(r => (r && r[0] !== undefined) ? String(r[0]).trim() : "");
-      let header = rawHeader;
-      let rows = rawData;
-
-      if (hasIndexCol) {
-        header = rawHeader.slice(1);
-        rows = rawData.map(r => r.slice(1));
-      } else {
-        dates = rawData.map(_ => "");
-        header = rawHeader.slice();
-        rows = rawData.map(r => r.slice());
-      }
-
-      // normalize row lengths to header length
-      const targetLen = header.length;
-      rows = rows.map(r => {
-        const rr = r.slice(0, targetLen);
-        while (rr.length < targetLen) rr.push("");
-        return rr;
-      });
-
-      return { header, rows, dates, hasIndexCol };
+      // rows: drop first cell (date)
+      const rows = lines.slice(1).map(line => line.split('\t').slice(1));
+      return { header, rows };
     }
 
-    function diffSpan(aStr, bStr) {
-      let a = parseFloat(aStr), b = parseFloat(bStr);
-      if (isNaN(a) || isNaN(b)) return "";
-      let d = a - b;
-      return d >= 0 ? `<span style="color:red;">+${d.toFixed(1)}</span>` : `<span style="color:green;">${d.toFixed(1)}</span>`;
-    }
-
-    const countryBlocks = [
-      ["united_states", "canada"],
-      ["austria", "belgium", "france", "germany", "greece", "italy", "netherlands", "spain", "poland", "united_kingdom"],
-      ["china", "japan", "south_korea", "australia"],
-      ["brazil", "mexico"],
-      ["israel", "turkey", "egypt", "south_africa"]
-    ];
-    const globalBlock = ["global", "global_weighted"];
-
-    // HOME table from parsed file
-    function loadCountryTableFromParsed(parsed) {
-      const header = parsed.header;
-      const rows = parsed.rows;
-      if (!header || !rows || rows.length < 2) return;
-
-      const lastIdx = rows.length - 1;
-      const idx30 = rows.length - 22;
-      const idx365 = rows.length - 261;
-
-      const col = {};
-      header.forEach((h, i) => { col[String(h).trim().toLowerCase()] = i; });
-
-      function get(rowIdx, key) {
-        const j = col[String(key).trim().toLowerCase()];
-        if (j === undefined) return "";
-        if (rowIdx < 0 || rowIdx >= rows.length) return "";
-        const v = rows[rowIdx][j];
-        return (v === undefined || v === null) ? "" : String(v).trim();
-      }
-
-      const shownDate = (parsed.dates && parsed.dates.length) ? parsed.dates[parsed.dates.length - 1] : time;
-
-      let tableHTML = '';
-      tableHTML += '<tr><th>Country</th><th>I3E</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th></tr>';
-
-      countryBlocks.forEach((block) => {
-        block.forEach((code, countryIdx) => {
-          const value = get(lastIdx, code);
-          const prev  = get(lastIdx - 1, code);
-          const v30   = get(idx30, code);
-          const v365  = get(idx365, code);
-
-          const isLastInBlock = (countryIdx === block.length - 1);
-          const tdStyle = isLastInBlock ? ' style="border-bottom: 2px solid #bbb;"' : '';
-
-          tableHTML += `<tr>
-            <td${tdStyle}>${formatCountryName(code)}</td>
-            <td${tdStyle}>${value}</td>
-            <td${tdStyle}>${diffSpan(value, prev)}</td>
-            <td${tdStyle}>${diffSpan(value, v30)}</td>
-            <td${tdStyle}>${diffSpan(value, v365)}</td>
-          </tr>`;
-        });
-      });
-
-      globalBlock.forEach(code => {
-        const value = get(lastIdx, code);
-        const prev  = get(lastIdx - 1, code);
-        const v30   = get(idx30, code);
-        const v365  = get(idx365, code);
-
-        tableHTML += `<tr style="font-weight: bold;">
-          <td>${formatCountryName(code)}</td>
-          <td>${value}</td>
-          <td>${diffSpan(value, prev)}</td>
-          <td>${diffSpan(value, v30)}</td>
-          <td>${diffSpan(value, v365)}</td>
-        </tr>`;
-      });
-
-      document.getElementById('table-container').innerHTML =
-        `<div style="font-size:14px; margin-bottom:10px;">Date: ${shownDate}<br>I3E: last 1D: Δ1-day 1M: Δ1-month 1Y: Δ1-year</div><table>${tableHTML}</table>`;
-
-      // Console alignment check
-      console.log("HOME TABLE (last row) alignment check:", {
-        australia: get(lastIdx,"australia"),
-        austria: get(lastIdx,"austria"),
-        belgium: get(lastIdx,"belgium"),
-        brazil: get(lastIdx,"brazil"),
-        canada: get(lastIdx,"canada"),
-        china: get(lastIdx,"china"),
-        egypt: get(lastIdx,"egypt"),
-        france: get(lastIdx,"france"),
-        germany: get(lastIdx,"germany"),
-        greece: get(lastIdx,"greece"),
-        israel: get(lastIdx,"israel"),
-        italy: get(lastIdx,"italy"),
-        japan: get(lastIdx,"japan"),
-        mexico: get(lastIdx,"mexico"),
-        netherlands: get(lastIdx,"netherlands"),
-        poland: get(lastIdx,"poland"),
-        south_africa: get(lastIdx,"south_africa"),
-        south_korea: get(lastIdx,"south_korea"),
-        spain: get(lastIdx,"spain"),
-        turkey: get(lastIdx,"turkey"),
-        united_kingdom: get(lastIdx,"united_kingdom"),
-        united_states: get(lastIdx,"united_states"),
-        global: get(lastIdx,"global"),
-        global_weighted: get(lastIdx,"global_weighted")
-      });
-    }
-
-    // SUBINDEX table from parsed file
-    function loadSubindexTableFromParsed(parsed) {
-      const header = parsed.header;
-      const rows = parsed.rows;
-      if (!header || !rows || rows.length < 2) return;
-
-      const lastIdx = rows.length - 1;
-      const idx30 = rows.length - 22;
-      const idx365 = rows.length - 261;
-
-      const col = {};
-      header.forEach((h, i) => { col[String(h).trim().toLowerCase()] = i; });
-
-      function get(rowIdx, key) {
-        const j = col[String(key).trim().toLowerCase()];
-        if (j === undefined) return "";
-        if (rowIdx < 0 || rowIdx >= rows.length) return "";
-        const v = rows[rowIdx][j];
-        return (v === undefined || v === null) ? "" : String(v).trim();
-      }
-
-      const shownDate = (parsed.dates && parsed.dates.length) ? parsed.dates[parsed.dates.length - 1] : subindexTime;
-
-      // Brent column name is "brent"
-      const brentVal  = get(lastIdx, "brent");
-      const brentPrev = get(lastIdx - 1, "brent");
-      const brent30v  = get(idx30, "brent");
-      const brent365v = get(idx365, "brent");
-
-      let tableHTML = '';
-      tableHTML += `<tr>
-        <th>Country</th>
-        <th>IDX</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>
-        <th>Bond</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>
-        <th>FX</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>
-        <th>Brent</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>
-      </tr>`;
-
-      function addRow(code, opts) {
-        const bold = opts && opts.bold;
-        const isLastInBlock = opts && opts.blockSeparator;
-
-        const idxKey = code + "_idx";
-        const bondKey = code + "_bond";
-        const fxKey = code + "_fx";
-
-        const idxVal  = get(lastIdx, idxKey);
-        const idxPrev = get(lastIdx - 1, idxKey);
-        const idx30v  = get(idx30, idxKey);
-        const idx365v = get(idx365, idxKey);
-
-        const bondVal  = get(lastIdx, bondKey);
-        const bondPrev = get(lastIdx - 1, bondKey);
-        const bond30v  = get(idx30, bondKey);
-        const bond365v = get(idx365, bondKey);
-
-        const fxVal  = get(lastIdx, fxKey);
-        const fxPrev = get(lastIdx - 1, fxKey);
-        const fx30v  = get(idx30, fxKey);
-        const fx365v = get(idx365, fxKey);
-
-        const rowStyle = bold ? ' style="font-weight:bold;"' : '';
-        const tdStyle = isLastInBlock ? ' style="border-bottom: 2px solid #bbb;"' : '';
-
-        tableHTML += `<tr${rowStyle}>
-          <td${tdStyle}>${formatCountryName(code)}</td>
-
-          <td${tdStyle}>${idxVal}</td>
-          <td${tdStyle}>${diffSpan(idxVal, idxPrev)}</td>
-          <td${tdStyle}>${diffSpan(idxVal, idx30v)}</td>
-          <td${tdStyle}>${diffSpan(idxVal, idx365v)}</td>
-
-          <td${tdStyle}>${bondVal}</td>
-          <td${tdStyle}>${diffSpan(bondVal, bondPrev)}</td>
-          <td${tdStyle}>${diffSpan(bondVal, bond30v)}</td>
-          <td${tdStyle}>${diffSpan(bondVal, bond365v)}</td>
-
-          <td${tdStyle}>${fxVal}</td>
-          <td${tdStyle}>${diffSpan(fxVal, fxPrev)}</td>
-          <td${tdStyle}>${diffSpan(fxVal, fx30v)}</td>
-          <td${tdStyle}>${diffSpan(fxVal, fx365v)}</td>
-
-          <td${tdStyle}>${brentVal}</td>
-          <td${tdStyle}>${diffSpan(brentVal, brentPrev)}</td>
-          <td${tdStyle}>${diffSpan(brentVal, brent30v)}</td>
-          <td${tdStyle}>${diffSpan(brentVal, brent365v)}</td>
-        </tr>`;
-      }
-
-      countryBlocks.forEach((block) => {
-        block.forEach((code, idxInBlock) => {
-          addRow(code, { blockSeparator: idxInBlock === block.length - 1 });
-        });
-      });
-
-      // Global at end (bold)
-      addRow("global", { bold: true, blockSeparator: false });
-
-      const headerInfo = `
-        <div style="font-size:14px; margin-bottom:10px;">
-          Date: ${shownDate}<br>
-          Values: last &nbsp;&nbsp; 1D: Δ1-day &nbsp;&nbsp; 1M: Δ1-month &nbsp;&nbsp; 1Y: Δ1-year
-        </div>
-      `;
-
-      const footerText = `
-        <div style="font-size:14px; margin-top:12px; max-width: 1200px;">
-          <h2 style="margin: 6px 0 6px 0;">Subindex</h2>
-          <p style="margin: 0;">
-            This table reports the latest values and changes (Δ1D, Δ1M, Δ1Y) for the three subcomponents:
-            <strong>Stock Index (idx)</strong>, <strong>10-year Bond Yield (bond)</strong>, and <strong>Exchange Rate (fx)</strong>.
-            It also reports <strong>Brent</strong> (common to all countries).
-          </p>
-        </div>
-      `;
-
-      document.getElementById('table-subindex-container').innerHTML =
-        `<div style="width:100%; overflow-x:auto;">${headerInfo}<table>${tableHTML}</table>${footerText}</div>`;
-
-      // Console alignment checks for Australia row keys:
-      console.log("SUBINDEX ALIGNMENT CHECK (last row keys):", {
-        australia_idx: get(lastIdx,"australia_idx"),
-        australia_bond: get(lastIdx,"australia_bond"),
-        australia_fx: get(lastIdx,"australia_fx"),
-        brent: get(lastIdx,"brent")
-      });
-    }
-
-    // Initial load: Home table
-    fetch('i3e_countries.txt')
-      .then(r => r.text())
-      .then(text => {
-        const parsed = parseTabFile(text);
-        if (!parsed) return;
-        if (parsed.dates && parsed.dates.length) time = parsed.dates[parsed.dates.length - 1];
-        loadCountryTableFromParsed(parsed);
-      })
-      .catch(err => console.error('Error loading i3e_countries.txt:', err));
-
-    // Subindex loader (used when clicking tab)
-    function loadSubindexTable() {
+    function buildSubindexTable() {
       fetch('subindex.txt')
         .then(r => r.text())
         .then(text => {
-          const parsed = parseTabFile(text);
+          const parsed = parseTSVDropIndex(text);
           if (!parsed) return;
-          if (parsed.dates && parsed.dates.length) subindexTime = parsed.dates[parsed.dates.length - 1];
-          loadSubindexTableFromParsed(parsed);
+
+          const header = parsed.header.map(h => h.trim().toLowerCase());
+          const rows = parsed.rows;
+          const lastIdx = rows.length - 1;
+          const idx30 = rows.length - 22;
+          const idx365 = rows.length - 261;
+
+          const groups = [
+            ["united_states", "canada"],
+            ["austria", "belgium", "france", "germany", "greece", "italy", "netherlands", "spain", "poland", "united_kingdom"],
+            ["china", "japan", "south_korea", "australia"],
+            ["brazil", "mexico"],
+            ["israel", "turkey", "egypt", "south_africa"]
+          ];
+          const globalCountry = "global";
+
+          function colIndex(colName) {
+            return header.indexOf(colName.toLowerCase());
+          }
+
+          function fmt(x) {
+            if (x === null || x === undefined) return "";
+            const v = ("" + x).trim();
+            return v;
+          }
+
+          function diffSpan(curr, past, decimals=1) {
+            let a = parseFloat(curr), b = parseFloat(past);
+            if (isNaN(a) || isNaN(b)) return "";
+            let d = a - b;
+            return d >= 0
+              ? `<span style="color:red;">+${d.toFixed(decimals)}</span>`
+              : `<span style="color:green;">${d.toFixed(decimals)}</span>`;
+          }
+
+          const brentCol = colIndex("brent");
+          const brentLast = brentCol >= 0 ? fmt(rows[lastIdx][brentCol]) : "";
+          const brentPrev = brentCol >= 0 ? fmt(rows[lastIdx - 1]?.[brentCol]) : "";
+          const brent30  = brentCol >= 0 ? fmt(rows[idx30]?.[brentCol]) : "";
+          const brent365 = brentCol >= 0 ? fmt(rows[idx365]?.[brentCol]) : "";
+
+          let html = "";
+          html += "<table>";
+          html += "<tr>";
+          html += "<th>Country</th>";
+
+          // For each component: value + diffs
+          const compHeaders = [
+            { key: "idx",  label: "IDX"  },
+            { key: "bond", label: "Bond" },
+            { key: "fx",   label: "FX"   }
+          ];
+
+          compHeaders.forEach(c => {
+            html += `<th>${c.label}</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>`;
+          });
+
+          html += `<th>Brent</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>`;
+          html += "</tr>";
+
+          function addRow(countryCode, isBold, isEndGroup) {
+            const name = formatCountryName(countryCode);
+            const trStyle = isBold ? ' style="font-weight:bold;"' : "";
+            html += `<tr${trStyle}>`;
+
+            const tdStyle = isEndGroup ? ' style="border-bottom: 2px solid #bbb;"' : "";
+            html += `<td${tdStyle}>${name}</td>`;
+
+            compHeaders.forEach(c => {
+              const col = colIndex(`${countryCode}_${c.key}`);
+              const vLast = col >= 0 ? fmt(rows[lastIdx][col]) : "";
+              const vPrev = col >= 0 ? fmt(rows[lastIdx - 1]?.[col]) : "";
+              const v30  = col >= 0 ? fmt(rows[idx30]?.[col]) : "";
+              const v365 = col >= 0 ? fmt(rows[idx365]?.[col]) : "";
+
+              html += `<td${tdStyle}>${vLast}</td>`;
+              html += `<td${tdStyle}>${diffSpan(vLast, vPrev)}</td>`;
+              html += `<td${tdStyle}>${diffSpan(vLast, v30)}</td>`;
+              html += `<td${tdStyle}>${diffSpan(vLast, v365)}</td>`;
+            });
+
+            // Brent (same for all countries, but still show on each row)
+            html += `<td${tdStyle}>${brentLast}</td>`;
+            html += `<td${tdStyle}>${diffSpan(brentLast, brentPrev)}</td>`;
+            html += `<td${tdStyle}>${diffSpan(brentLast, brent30)}</td>`;
+            html += `<td${tdStyle}>${diffSpan(brentLast, brent365)}</td>`;
+
+            html += "</tr>";
+          }
+
+          groups.forEach(group => {
+            group.forEach((cc, idx) => {
+              const isEnd = (idx === group.length - 1);
+              addRow(cc, false, isEnd);
+            });
+          });
+
+          // global at end, bold like home table behavior
+          addRow(globalCountry, true, false);
+
+          html += "</table>";
+
+          const stamp = (time && time.length) ? time : "";
+          const headerNote = `<div style="font-size:14px; margin-bottom:10px;">Date: ${stamp}<br>Subindex: last, Δ1-day, Δ1-month, Δ1-year</div>`;
+          document.getElementById("subindex-table-container").innerHTML = headerNote + html;
         })
-        .catch(err => console.error('Error loading subindex.txt:', err));
+        .catch(err => console.error("Error loading subindex.txt:", err));
     }
 
-    // Nav actions
-    document.querySelectorAll('.nav a').forEach(function(link) {
-      link.addEventListener('click', function(event) {
-        event.preventDefault();
-        var contentDiv = document.getElementById('content');
-        var tableDiv = document.getElementById('table-container');
-        var tableSubDiv = document.getElementById('table-subindex-container');
-        var linkText = this.textContent.trim();
+    // ---------- NAV TABS ----------
+    function hideAllCharts() {
+      document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
+    }
 
-        if (linkText === 'Home') {
+    function showHome() {
+      document.getElementById('home-view').style.display = 'flex';
+      document.getElementById('subindex-view').style.display = 'none';
+      document.getElementById('table-container').style.display = 'block';
+      // Show default chart
+      hideAllCharts();
+      const globalChart = document.getElementById('chart-global');
+      globalChart.style.display = 'block';
+      renderChart("chart-global", "global");
+      if (window.Plotly) { setTimeout(() => { try { Plotly.Plots.resize(globalChart); } catch(e) {} }, 0); }
+    }
+
+    function showSubindex() {
+      // hide home section (text+table) and charts, show subindex view
+      document.getElementById('home-view').style.display = 'none';
+      hideAllCharts();
+      document.getElementById('subindex-view').style.display = 'block';
+      buildSubindexTable();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    document.querySelectorAll('.nav a[data-tab]').forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const tab = this.getAttribute('data-tab');
+        const contentDiv = document.getElementById('content');
+        const tableDiv = document.getElementById('table-container');
+
+        if (tab === 'home') {
           location.reload();
-        } else if (linkText === 'Global Indices') {
-          showContentAndResetLayout();
-          contentDiv.innerHTML = `<h2 style="text-align: left;">I3E Global Indices</h2>`;
+          return;
+        }
+
+        if (tab === 'global-indices') {
+          document.getElementById('subindex-view').style.display = 'none';
+          document.getElementById('home-view').style.display = 'flex';
+          contentDiv.innerHTML = `<h2 style="text-align:left;">I3E Global Indices</h2>`;
           tableDiv.style.display = 'none';
-          tableSubDiv.style.display = 'none';
-          document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
-        } else if (linkText === 'Subindex') {
-          hideContentForWideTable();
-          tableDiv.style.display = 'none';
-          tableSubDiv.style.display = 'block';
-          document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
-          loadSubindexTable();
-        } else if (linkText === 'Data') {
-          showContentAndResetLayout();
+          hideAllCharts();
+          return;
+        }
+
+        if (tab === 'subindex') {
+          showSubindex();
+          return;
+        }
+
+        if (tab === 'data') {
+          document.getElementById('subindex-view').style.display = 'none';
+          document.getElementById('home-view').style.display = 'flex';
           contentDiv.innerHTML = `
             <p><a href="i3e_global.txt" target="_blank">DATA</a> - Download I3E global data (txt). Since 1990-01-01. Updated daily (${time}).</p>
             <p><a href="i3e_global_weighted.txt" target="_blank">DATA</a> - Download I3E global weighted data (txt). Since 1990-01-01. Updated daily (${time}).</p>
             <p><a href="i3e_countries.txt" target="_blank">DATA</a> - Download I3E country data (txt). Since 1990-01-01. Updated daily (${time}).</p>
-            <p><a href="subindex.txt" target="_blank">DATA</a> - Download Subindex data (txt). Since 1990-01-01. Updated daily (${subindexTime || time}).</p>
+            <p><a href="subindex.txt" target="_blank">DATA</a> - Download Subindex data (txt). Since 1990-01-01. Updated daily (${time}).</p>
           `;
           tableDiv.style.display = 'none';
-          tableSubDiv.style.display = 'none';
-          document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
-        } else if (linkText === 'Research') {
-          showContentAndResetLayout();
+          hideAllCharts();
+          return;
+        }
+
+        if (tab === 'research') {
+          document.getElementById('subindex-view').style.display = 'none';
+          document.getElementById('home-view').style.display = 'flex';
           contentDiv.innerHTML = `
             <h2>Research Papers</h2>
             <p><a href="I3E.pdf" target="_blank">Working paper</a> - I3E Technical Note.</p>
             <p><a href="I3E_and_alternatives.pdf" target="_blank">Working paper</a> - Comparison I3E, WUI, EPU and WIX.</p>
           `;
           tableDiv.style.display = 'none';
-          tableSubDiv.style.display = 'none';
-          document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
-        } else if (linkText === 'Contact') {
-          showContentAndResetLayout();
+          hideAllCharts();
+          return;
+        }
+
+        if (tab === 'contact') {
+          document.getElementById('subindex-view').style.display = 'none';
+          document.getElementById('home-view').style.display = 'flex';
           contentDiv.innerHTML = `
             <p>
               Miguel Angel Ariño <br>
@@ -723,46 +702,29 @@
             </p>
           `;
           tableDiv.style.display = 'none';
-          tableSubDiv.style.display = 'none';
-          document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
-        } else {
-          showContentAndResetLayout();
-          contentDiv.innerHTML = "";
-          tableDiv.style.display = 'none';
-          tableSubDiv.style.display = 'none';
-          document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
+          hideAllCharts();
+          return;
         }
       });
     });
-  </script>
 
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      renderChart("chart-global", "global");
-    });
-  </script>
-
-  <script>
+    // Sidebar: country chart selection
     document.querySelectorAll('.sidebar a[data-country]').forEach(link => {
       link.addEventListener('click', function(e) {
         e.preventDefault();
+
+        // If user is in subindex view, switch back to home view automatically so charts make sense
+        document.getElementById('subindex-view').style.display = 'none';
+        document.getElementById('home-view').style.display = 'flex';
+
         const country = this.getAttribute('data-country');
         const containerId = `chart-${country}`;
 
-        // Hide all charts
-        document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
+        // Hide table in non-home navigation context? keep it visible on home
+        document.getElementById('table-container').style.display = 'block';
 
-        // Hide tables (so charts have space)
-        const tableDiv = document.getElementById('table-container');
-        const tableSubDiv = document.getElementById('table-subindex-container');
-        if (tableDiv) tableDiv.style.display = 'none';
-        if (tableSubDiv) tableSubDiv.style.display = 'none';
-
-        // Restore content column
-        showContentAndResetLayout();
-        document.getElementById('content').innerHTML = "";
-
-        // Show chart
+        // Hide all charts, show selected
+        hideAllCharts();
         const chartDiv = document.getElementById(containerId);
         if (chartDiv) {
           chartDiv.style.display = 'block';
@@ -770,31 +732,27 @@
           renderChart(containerId, country);
 
           if (window.Plotly) {
-            setTimeout(() => {
-              try { Plotly.Plots.resize(chartDiv); } catch(e) {}
-            }, 0);
+            setTimeout(() => { try { Plotly.Plots.resize(chartDiv); } catch(e) {} }, 0);
           }
         }
       });
     });
-  </script>
 
-  <script>
+    // Initial render
+    document.addEventListener("DOMContentLoaded", () => {
+      renderChart("chart-global", "global");
+    });
+
+    // Resize helpers
     function resizeAllPlots() {
       if (!window.Plotly) return;
       document.querySelectorAll('.plot-container').forEach(function (el) {
         try { Plotly.Plots.resize(el); } catch(e) {}
       });
     }
-
     window.addEventListener('resize', resizeAllPlots);
-    window.addEventListener('orientationchange', function () {
-      setTimeout(resizeAllPlots, 150);
-    });
-    window.addEventListener('load', function () {
-      setTimeout(resizeAllPlots, 0);
-    });
+    window.addEventListener('orientationchange', function () { setTimeout(resizeAllPlots, 150); });
+    window.addEventListener('load', function () { setTimeout(resizeAllPlots, 0); });
   </script>
-
 </body>
 </html>
