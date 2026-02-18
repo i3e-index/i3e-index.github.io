@@ -57,48 +57,11 @@
   <!-- Load Plotly and Custom Charts -->
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
-    <!-- 🔧 Shim: force responsive plots + immediate resize after newPlot
-       — also set default x-axis view to last 10 years if no range provided -->
+  <!-- 🔧 Shim: force responsive plots + immediate resize after newPlot
+     — also set default x-axis view to last 10 years if no range provided -->
   <script>
     (function () {
-      if (!window.Plotly) return;
-      const _newPlot = Plotly.newPlot;
-      Plotly.newPlot = function (root, data, layout, config) {
-        // keep responsive and autosize defaults
-        const cfg = Object.assign({ responsive: true }, config || {});
-        const lay = Object.assign({ autosize: true }, layout || {});
-
-        // call original newPlot and then post-process the created graph div (gd)
-        return _newPlot(root, data, lay, cfg).then(function (gd) {
-          try { Plotly.Plots.resize(gd); } catch (e) {}
-
-          try {
-            // If the layout already defines an explicit x-axis range, don't override it.
-            const hasExplicitRange =
-              (gd && gd.layout && gd.layout.xaxis && Array.isArray(gd.layout.xaxis.range) && gd.layout.xaxis.range.length === 2);
-
-            if (!hasExplicitRange) {
-              // Compute last-10-years range (end = today, start = today - 10 years)
-              const end = new Date();
-              const start = new Date(end);
-              start.setFullYear(start.getFullYear() - 10);
-
-              // Convert to ISO date strings (Plotly accepts Date objects or ISO strings).
-              const endISO = end.toISOString();
-              const startISO = start.toISOString();
-
-              // Apply the range to the primary x-axis only if it exists on the plot (safe relayout).
-              // Use Plotly.relayout so the modebar buttons (1y/5y/10y/max) still work.
-              Plotly.relayout(gd, { 'xaxis.range': [startISO, endISO] }).catch(function(err){ /* ignore relayout errors */ });
-            }
-          } catch (err) {
-            // Defensive: never break the plot if anything goes wrong here.
-            console.error('Error applying 10y default range:', err);
-          }
-
-          return gd;
-        });
-      };
+      ...
     })();
   </script>
   
