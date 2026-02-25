@@ -17,24 +17,24 @@
   <meta name="keywords" content="I3E, Economic Uncertainty, Uncertainty Index, Economic Risk, IESE, Economic Indicators, International Center for Decision Making, Global Economic Index, Research, Data">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://i3e-index.github.io/">
-
+  
   <!-- ✅ Favicons (Absolute URLs for Google & Safari) -->
   <link rel="icon" href="https://i3e-index.github.io/favicon.png?v=2" sizes="48x48" type="image/png">
   <link rel="icon" href="https://i3e-index.github.io/favicon.ico?v=2" sizes="any">
   <link rel="apple-touch-icon" href="https://i3e-index.github.io/favicon.png?v=2">
   <link rel="mask-icon" href="https://i3e-index.github.io/mask-icon.svg" color="#FF3B30">
-
+  
   <!-- Open Graph / Facebook -->
   <meta property="og:title" content="IESE I3E Economic Uncertainty Index">
   <meta property="og:description" content="Track economic uncertainty globally with the I3E Index. Daily updates, transparent methodology, downloadable data for researchers and decision-makers">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://i3e-index.github.io/">
-
+  
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="IESE I3E Economic Uncertainty Index">
   <meta name="twitter:description" content="Explore global economic uncertainty with I3E's transparent and up-to-date index.">
-
+  
   <!-- Schema.org Structured Data -->
   <script type="application/ld+json">
   {
@@ -62,7 +62,7 @@
       ...
     })();
   </script>
-
+  
   <script src="charts.js"></script>
 
   <style>
@@ -223,26 +223,6 @@
       font-size: 15px;
       color: #444;
     }
-
-    /* Forward tab layout */
-    #forward-view {
-      display: none;
-      margin-top: 20px;
-      text-align: center;
-    }
-    #forward-title {
-      text-align: center;
-      font-size: 18px;
-      font-weight: bold;
-      margin-bottom: 4px;
-      color: #333;
-    }
-    #forward-last {
-      text-align: center;
-      font-size: 14px;
-      color: #444;
-      margin-bottom: 12px;
-    }
   </style>
 </head>
 
@@ -287,7 +267,6 @@
           <a href="#" data-tab="home">Home</a>
           <a href="#" data-tab="global-indices">Global Indices</a>
           <a href="#" data-tab="subindex">Subindex</a>
-          <a href="#" data-tab="forward">Forward</a>
           <a href="#" data-tab="data">Data</a>
           <a href="#" data-tab="research">Research</a>
           <a href="#" data-tab="contact">Contact</a>
@@ -336,17 +315,6 @@
         This table reports the latest values of the three subcomponents (IDX = Stock Market, Bond = Bond prices, FX = Exchange Rate) for each country, plus Brent subindex.
         Each subcomponent shows the last value and the differences versus 1 day, 1 month, and 1 year ago.
       </div>
-    </div>
-
-    <!-- Forward tab view -->
-    <div id="forward-view">
-      <!-- Title centered above the graph -->
-      <div id="forward-title">I3E Forward (USA)</div>
-      <!-- Last value (date and index value) will be inserted here -->
-      <div id="forward-last"></div>
-
-      <!-- Chart container - will use the same format as home charts (charts.js style) but with custom color -->
-      <div id="chart-forward" class="plot-container"></div>
     </div>
 
     <!-- Chart containers -->
@@ -617,135 +585,16 @@
         .catch(err => console.error("Error loading subindex.txt:", err));
     }
 
-    // ---------- FORWARD PLOT (charts.js format aligned with home charts) ----------
-    // This function renders the forward chart using the same basic layout/format as home charts
-    // but only changes the line color and the semi-transparent fill under the curve.
-    function parseTSVOneColumn(text, colName) {
-      const lines = text.trim().split('\n').filter(l => l.trim().length > 0);
-      if (lines.length < 2) return null;
-
-      // headerParts: first line contains an (empty) date column name and then column name(s)
-      let headerParts = lines[0].split('\t');
-      // if first is empty index label, drop it so headerParts align with data columns
-      if (headerParts[0].trim() === '') headerParts.shift();
-
-      const lower = headerParts.map(h => h.trim().toLowerCase());
-      const colIdx = lower.indexOf(colName.toLowerCase());
-      if (colIdx < 0) return null;
-
-      const x = [];
-      const y = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const parts = lines[i].split('\t');
-        const dateStr = (parts[0] || '').trim();
-        const valStr = (parts[colIdx + 1] || '').trim(); // +1 because date is first column
-        if (!dateStr) continue;
-        const v = parseFloat(valStr);
-        // Accept NaN? we skip non-numeric values
-        if (isNaN(v)) continue;
-        x.push(dateStr);
-        y.push(v);
-      }
-      return { x, y };
-    }
-
-    function renderForwardChart() {
-      const containerId = "chart-forward";
-      const el = document.getElementById(containerId);
-      if (!el) return;
-
-      fetch('i3e_f_usa.txt')
-        .then(r => r.text())
-        .then(text => {
-          const parsed = parseTSVOneColumn(text, "i3e_f_usa");
-          if (!parsed) {
-            console.error("Forward series not found in i3e_f_usa.txt");
-            document.getElementById('forward-last').textContent = "";
-            return;
-          }
-
-          // compute last value (most recent)
-          let lastIndex = parsed.x.length - 1;
-          const lastDate = parsed.x[lastIndex];
-          const lastValue = parsed.y[lastIndex];
-
-          // show last value below the centered title (format Date: value)
-          document.getElementById('forward-last').innerHTML =
-            `<span>${lastDate} — ${Number(lastValue).toFixed(1)}</span>`;
-
-          // Build trace matching home chart format but with custom color and fill area
-          const lineColor = "#00868B";
-          const fillColor = "rgba(0,134,139,0.12)"; // quasi-transparent area under curve
-
-          const trace = {
-            x: parsed.x,
-            y: parsed.y,
-            type: 'scatter',
-            mode: 'lines',
-            line: { color: lineColor, width: 2 },
-            fill: 'tozeroy',
-            fillcolor: fillColor,
-            hovertemplate: '%{x}<br>%{y:.2f}<extra></extra>'
-          };
-
-          // Layout: keep same style as home charts (no rangeslider / rangeselector -> per user's request)
-          const layout = {
-            margin: { l: 60, r: 20, t: 10, b: 50 },
-            xaxis: {
-              type: 'date',
-              showgrid: false
-            },
-            yaxis: {
-              title: { text: 'Index' },
-              showgrid: false
-            },
-            // title removed here because we show the centered title as HTML above the graph
-            showlegend: false,
-            hovermode: 'x'
-          };
-
-          const config = { responsive: true, displaylogo: false };
-
-          // Clear previous plot then draw
-          try { Plotly.purge(containerId); } catch(e) {}
-          Plotly.newPlot(containerId, [trace], layout, config).then(() => {
-            try { Plotly.Plots.resize(el); } catch(e) {}
-          });
-        })
-        .catch(err => {
-          console.error("Error loading i3e_f_usa.txt:", err);
-          document.getElementById('forward-last').textContent = "";
-        });
-    }
-
     // ---------- NAV TABS ----------
     function hideAllCharts() {
       document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
     }
 
     function showSubindex() {
-      document.getElementById('forward-view').style.display = 'none';
       document.getElementById('home-view').style.display = 'none';
       hideAllCharts();
       document.getElementById('subindex-view').style.display = 'block';
       buildSubindexTable();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function showForward() {
-      document.getElementById('subindex-view').style.display = 'none';
-      document.getElementById('home-view').style.display = 'none';
-      hideAllCharts();
-      document.getElementById('forward-view').style.display = 'block';
-
-      // ensure forward chart container is visible
-      const f = document.getElementById('chart-forward');
-      if (f) f.style.display = 'block';
-
-      // Render the forward chart using the charts.js style (same format as home)
-      renderForwardChart();
-
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -765,7 +614,6 @@
 
         if (tab === 'global-indices') {
           document.getElementById('subindex-view').style.display = 'none';
-          document.getElementById('forward-view').style.display = 'none';
           document.getElementById('home-view').style.display = 'flex';
           contentDiv.innerHTML = `<h2 style="text-align:left;">I3E Global Indices</h2>`;
           tableDiv.style.display = 'none';
@@ -778,21 +626,14 @@
           return;
         }
 
-        if (tab === 'forward') {
-          showForward();
-          return;
-        }
-
         if (tab === 'data') {
           document.getElementById('subindex-view').style.display = 'none';
-          document.getElementById('forward-view').style.display = 'none';
           document.getElementById('home-view').style.display = 'flex';
           contentDiv.innerHTML = `
             <p><a href="i3e_global.txt" target="_blank">DATA</a> - Download I3E global data (txt). Since 1990-01-01. Updated daily (${time}).</p>
             <p><a href="i3e_global_weighted.txt" target="_blank">DATA</a> - Download I3E global weighted data (txt). Since 1990-01-01. Updated daily (${time}).</p>
             <p><a href="i3e_countries.txt" target="_blank">DATA</a> - Download I3E country data (txt). Since 1990-01-01. Updated daily (${time}).</p>
             <p><a href="subindex.txt" target="_blank">DATA</a> - Download Subindex data (txt). Since 1990-01-01. Updated daily (${time}).</p>
-            <p><a href="i3e_f_usa.txt" target="_blank">DATA</a> - Download I3E forward USA data (txt). Updated daily (${time}).</p>
           `;
           tableDiv.style.display = 'none';
           hideAllCharts();
@@ -801,7 +642,6 @@
 
         if (tab === 'research') {
           document.getElementById('subindex-view').style.display = 'none';
-          document.getElementById('forward-view').style.display = 'none';
           document.getElementById('home-view').style.display = 'flex';
           contentDiv.innerHTML = `
             <h2>Research Papers</h2>
@@ -815,7 +655,6 @@
 
         if (tab === 'contact') {
           document.getElementById('subindex-view').style.display = 'none';
-          document.getElementById('forward-view').style.display = 'none';
           document.getElementById('home-view').style.display = 'flex';
           contentDiv.innerHTML = `
             <p>
@@ -841,7 +680,7 @@
     });
 
     // Sidebar: country chart selection
-    // ✅ Do NOT switch tabs/views when clicking countries.
+    // ✅ FIX: Do NOT switch tabs/views when clicking countries.
     // Only show the selected chart, and only show the home table if currentTab === "home".
     document.querySelectorAll('.sidebar a[data-country]').forEach(link => {
       link.addEventListener('click', function(e) {
@@ -856,7 +695,7 @@
           tableDiv.style.display = (currentTab === "home") ? "block" : "none";
         }
 
-        // Do NOT touch home-view/subindex-view/forward-view displays here.
+        // Do NOT touch home-view/subindex-view displays here.
         // Just switch chart.
         hideAllCharts();
         const chartDiv = document.getElementById(containerId);
