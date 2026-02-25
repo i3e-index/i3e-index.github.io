@@ -228,11 +228,20 @@
     #forward-view {
       display: none;
       margin-top: 20px;
+      text-align: center;
     }
-    #forward-text {
-      margin-top: 10px;
-      font-size: 15px;
+    #forward-title {
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 4px;
+      color: #333;
+    }
+    #forward-last {
+      text-align: center;
+      font-size: 14px;
       color: #444;
+      margin-bottom: 12px;
     }
   </style>
 </head>
@@ -331,10 +340,12 @@
 
     <!-- Forward tab view -->
     <div id="forward-view">
-      <div id="forward-text">
-        <strong>Forward</strong><br>
-        I3E forward series for the United States (i3e_f_usa). Use the buttons to zoom to 1Y, 5Y, 10Y, or Max.
-      </div>
+      <!-- Title centered above the graph -->
+      <div id="forward-title">I3E Forward (USA)</div>
+      <!-- Last value (date and index value) will be inserted here -->
+      <div id="forward-last"></div>
+
+      <!-- Chart container - will use the same format as home charts (charts.js style) but with custom color -->
       <div id="chart-forward" class="plot-container"></div>
     </div>
 
@@ -606,18 +617,20 @@
         .catch(err => console.error("Error loading subindex.txt:", err));
     }
 
-    // ---------- FORWARD PLOT ----------
-    var forwardPlotRendered = false;
-
+    // ---------- FORWARD PLOT (charts.js format aligned with home charts) ----------
+    // This function renders the forward chart using the same basic layout/format as home charts
+    // but only changes the line color and the semi-transparent fill under the curve.
     function parseTSVOneColumn(text, colName) {
       const lines = text.trim().split('\n').filter(l => l.trim().length > 0);
       if (lines.length < 2) return null;
 
+      // headerParts: first line contains an (empty) date column name and then column name(s)
       let headerParts = lines[0].split('\t');
-      // headerParts[0] is empty index name
+      // if first is empty index label, drop it so headerParts align with data columns
       if (headerParts[0].trim() === '') headerParts.shift();
 
-      const colIdx = headerParts.map(h => h.trim().toLowerCase()).indexOf(colName.toLowerCase());
+      const lower = headerParts.map(h => h.trim().toLowerCase());
+      const colIdx = lower.indexOf(colName.toLowerCase());
       if (colIdx < 0) return null;
 
       const x = [];
@@ -626,9 +639,10 @@
       for (let i = 1; i < lines.length; i++) {
         const parts = lines[i].split('\t');
         const dateStr = (parts[0] || '').trim();
-        const valStr = (parts[colIdx + 1] || '').trim(); // +1 because date is col 0
+        const valStr = (parts[colIdx + 1] || '').trim(); // +1 because date is first column
         if (!dateStr) continue;
         const v = parseFloat(valStr);
+        // Accept NaN? we skip non-numeric values
         if (isNaN(v)) continue;
         x.push(dateStr);
         y.push(v);
@@ -647,44 +661,62 @@
           const parsed = parseTSVOneColumn(text, "i3e_f_usa");
           if (!parsed) {
             console.error("Forward series not found in i3e_f_usa.txt");
+            document.getElementById('forward-last').textContent = "";
             return;
           }
+
+          // compute last value (most recent)
+          let lastIndex = parsed.x.length - 1;
+          const lastDate = parsed.x[lastIndex];
+          const lastValue = parsed.y[lastIndex];
+
+          // show last value below the centered title (format Date: value)
+          document.getElementById('forward-last').innerHTML =
+            `<span>${lastDate} — ${Number(lastValue).toFixed(1)}</span>`;
+
+          // Build trace matching home chart format but with custom color and fill area
+          const lineColor = "#00868B";
+          const fillColor = "rgba(0,134,139,0.12)"; // quasi-transparent area under curve
 
           const trace = {
             x: parsed.x,
             y: parsed.y,
-            mode: "lines",
-            name: "i3e_f_usa",
-            line: { color: "#00868B", width: 2 } // ✅ custom color only for Forward
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: lineColor, width: 2 },
+            fill: 'tozeroy',
+            fillcolor: fillColor,
+            hovertemplate: '%{x}<br>%{y:.2f}<extra></extra>'
           };
 
+          // Layout: keep same style as home charts (no rangeslider / rangeselector -> per user's request)
           const layout = {
-            title: { text: "I3E Forward (USA)", x: 0.02, xanchor: "left" },
-            margin: { l: 60, r: 20, t: 50, b: 50 },
+            margin: { l: 60, r: 20, t: 10, b: 50 },
             xaxis: {
-              type: "date",
-              rangeselector: {
-                buttons: [
-                  { count: 1, label: "1Y", step: "year", stepmode: "backward" },
-                  { count: 5, label: "5Y", step: "year", stepmode: "backward" },
-                  { count: 10, label: "10Y", step: "year", stepmode: "backward" },
-                  { step: "all", label: "Max" }
-                ]
-              },
-              rangeslider: { visible: true }
+              type: 'date',
+              showgrid: false
             },
-            yaxis: { title: { text: "Index" } },
-            showlegend: false
+            yaxis: {
+              title: { text: 'Index' },
+              showgrid: false
+            },
+            // title removed here because we show the centered title as HTML above the graph
+            showlegend: false,
+            hovermode: 'x'
           };
 
           const config = { responsive: true, displaylogo: false };
 
+          // Clear previous plot then draw
+          try { Plotly.purge(containerId); } catch(e) {}
           Plotly.newPlot(containerId, [trace], layout, config).then(() => {
-            forwardPlotRendered = true;
             try { Plotly.Plots.resize(el); } catch(e) {}
           });
         })
-        .catch(err => console.error("Error loading i3e_f_usa.txt:", err));
+        .catch(err => {
+          console.error("Error loading i3e_f_usa.txt:", err);
+          document.getElementById('forward-last').textContent = "";
+        });
     }
 
     // ---------- NAV TABS ----------
@@ -711,7 +743,9 @@
       const f = document.getElementById('chart-forward');
       if (f) f.style.display = 'block';
 
+      // Render the forward chart using the charts.js style (same format as home)
       renderForwardChart();
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -807,7 +841,7 @@
     });
 
     // Sidebar: country chart selection
-    // ✅ FIX: Do NOT switch tabs/views when clicking countries.
+    // ✅ Do NOT switch tabs/views when clicking countries.
     // Only show the selected chart, and only show the home table if currentTab === "home".
     document.querySelectorAll('.sidebar a[data-country]').forEach(link => {
       link.addEventListener('click', function(e) {
