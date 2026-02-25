@@ -742,16 +742,7 @@
 
       const chartDiv = document.getElementById('chart-forward');
       if (chartDiv) {
-        chartDiv.innerHTML = `
-          <div style="max-width:900px; margin:0 auto 20px auto; font-size:15px; line-height:1.6;">
-            <p>The I3E Forward (USA) combines the implied volatility (1 Month constant maturity) expected by economic agents in the next 30 days across these four assets:.</p>
-            <p>Implied Volatility of options on the S&P500.</p>
-            <p>Implied Volatility of options on the 10-year U.S. Treasury bonds.</p>
-            <p>Implied Volatility of options on EUR/USD FX market.</p>
-            <p>Implied Volatility of options on Brent crude oil</p>
-          </div>
-        `;
-        
+     
         chartDiv.style.display = 'block';
         renderForwardChart('chart-forward');
 
