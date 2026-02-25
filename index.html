@@ -656,6 +656,10 @@
         const start10Y = new Date(lastDateObj);
         start10Y.setFullYear(start10Y.getFullYear() - 10);
 
+        // ✅ ADD THESE TWO LINES HERE
+        const forwardLineColor = "#00FFFF";          // change this to any color
+        const forwardFillColor = "rgba(31,119,180,0.06)";
+
         Plotly.newPlot(
           `${containerId}-plot`,
           [
@@ -665,8 +669,8 @@
               type: "scatter",
               mode: "lines",
               fill: "tozeroy",
-              fillcolor: "rgba(255, 59, 48, 0.04)",
-              line: { color: "#FF3B30", width: 2 },
+              fillcolor: forwardFillColor,
+              line: { color: forwardLineColor, width: 2 },
               hovertemplate: "%{x|%Y-%m-%d}<br>Value: %{y}<extra></extra>",
               name: "Forward",
             },
