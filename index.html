@@ -59,9 +59,7 @@
      — also set default x-axis view to last 10 years if no range provided -->
   <script>
     (function () {
-      // (kept as-is; your existing shim content goes here)
-      // If you had "..." in your repo, keep it exactly as you have it.
-      // This placeholder avoids breaking your current setup.
+      // Keep your existing shim here (if you have one in your repo).
     })();
   </script>
 
@@ -353,14 +351,16 @@
       </div>
     </div>
 
-    <!-- Forward tab view (toggle buttons + two plots) -->
+    <!-- Forward tab view (toggle buttons + three plots) -->
     <div id="forward-view">
       <div class="forward-toggle">
         <button type="button" id="btn-forward-usa" data-forward="usa" class="active">USA</button>
         <button type="button" id="btn-forward-eu" data-forward="eu">EU</button>
+        <button type="button" id="btn-forward-jp" data-forward="jp">JAPAN</button>
       </div>
       <div id="chart-forward-usa" class="plot-container"></div>
       <div id="chart-forward-eu" class="plot-container" style="display:none;"></div>
+      <div id="chart-forward-jp" class="plot-container" style="display:none;"></div>
     </div>
 
     <!-- Chart containers -->
@@ -632,18 +632,17 @@
         .catch(err => console.error("Error loading subindex.txt:", err));
     }
 
-    // ---------- FORWARD TAB (USA + EU) ----------
-    // Uses the SAME chart template/style as your existing renderForwardChart(),
-    // generalized to read either i3e_f_usa.txt or i3e_f_eu.txt.
-
+    // ---------- FORWARD TAB (USA + EU + JAPAN) ----------
     const forwardSeries = {
       usa: { file: "i3e_f_usa.txt", title: "I3E FORWARD (USA)" },
-      eu:  { file: "i3e_f_eu.txt",  title: "I3E FORWARD (EU)"  }
+      eu:  { file: "i3e_f_eu.txt",  title: "I3E FORWARD (EU)"  },
+      jp:  { file: "i3e_f_jp.txt",  title: "I3E FORWARD (JAPAN)" }
     };
 
     let forwardCache = {
       usa: { loaded: false, dates: [], values: [], startYear: null, endYear: null },
-      eu:  { loaded: false, dates: [], values: [], startYear: null, endYear: null }
+      eu:  { loaded: false, dates: [], values: [], startYear: null, endYear: null },
+      jp:  { loaded: false, dates: [], values: [], startYear: null, endYear: null }
     };
 
     function loadForwardData(key, cb) {
@@ -703,12 +702,12 @@
           <div id="${containerId}-plot" style="width: 100%; height: 60vw; max-height: 600px;"></div>
         `;
 
-        // Default window: last 10 years (same logic as charts.js)
+        // Default window: last 10 years
         const lastDateObj = new Date(dates[dates.length - 1]);
         const start10Y = new Date(lastDateObj);
         start10Y.setFullYear(start10Y.getFullYear() - 10);
 
-        // Keep the same look as your current Forward plot
+        // Keep same look as your existing Forward plot
         const forwardLineColor = "#00BFFF";
         const forwardFillColor = "rgba(31,119,180,0.06)";
 
@@ -732,11 +731,8 @@
             yaxis: { range: [0, 250], title: "Index Value" },
             xaxis: {
               type: "date",
-
-              // Force initial view to last 10 years
               autorange: false,
               range: [start10Y.toISOString(), lastDateObj.toISOString()],
-
               tickangle: -90,
               tickformat: "%Y",
               tickvals: Array.from(
@@ -783,11 +779,18 @@
       // Toggle which forward chart container is visible
       const usaDiv = document.getElementById('chart-forward-usa');
       const euDiv  = document.getElementById('chart-forward-eu');
+      const jpDiv  = document.getElementById('chart-forward-jp');
+
       if (usaDiv) usaDiv.style.display = (key === 'usa') ? 'block' : 'none';
       if (euDiv)  euDiv.style.display  = (key === 'eu')  ? 'block' : 'none';
+      if (jpDiv)  jpDiv.style.display  = (key === 'jp')  ? 'block' : 'none';
 
       // Render the selected chart
-      const targetId = (key === 'eu') ? 'chart-forward-eu' : 'chart-forward-usa';
+      const targetId =
+        (key === 'eu') ? 'chart-forward-eu' :
+        (key === 'jp') ? 'chart-forward-jp' :
+        'chart-forward-usa';
+
       renderForwardChart(targetId, key);
 
       // Resize after paint
@@ -873,6 +876,7 @@
             <p><a href="subindex.txt" target="_blank">DATA</a> - Download Subindex data (txt). Since 1990-01-01. Updated daily (${time}).</p>
             <p><a href="i3e_f_usa.txt" target="_blank">DATA</a> - Download I3E FORWARD (USA) data (txt). Since 2000-01-01. Updated daily (${time}).</p>
             <p><a href="i3e_f_eu.txt" target="_blank">DATA</a> - Download I3E FORWARD (EU) data (txt). Since 2000-01-01. Updated daily (${time}).</p>
+            <p><a href="i3e_f_jp.txt" target="_blank">DATA</a> - Download I3E FORWARD (JAPAN) data (txt). Since 2000-01-01. Updated daily (${time}).</p>
           `;
           tableDiv.style.display = 'none';
           hideAllCharts();
@@ -941,7 +945,6 @@
         if (forwardView) forwardView.style.display = 'none';
         document.getElementById('subindex-view').style.display = 'none';
 
-        // Do NOT touch home-view display here.
         // Just switch chart.
         hideAllCharts();
         const chartDiv = document.getElementById(containerId);
