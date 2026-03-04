@@ -62,6 +62,7 @@
     })();
   </script>
 
+  <!-- Your updated charts.js (in same directory) -->
   <script src="charts.js"></script>
 
   <style>
@@ -259,7 +260,7 @@
   <div class="sidebar">
     <img src="favicon_XL.png" alt="I3E Economic Uncertainty Index logo" style="display:block; margin:0 auto 18px auto; width:100%; height:auto; max-width:120px;">
     <h2>Countries</h2>
-    <!-- ✅ dynamic -->
+    <!-- ✅ dynamic country list -->
     <div id="country-links"></div>
   </div>
 
@@ -341,26 +342,19 @@
       <div id="chart-forward-jp" class="plot-container" style="display:none;"></div>
     </div>
 
-    <!-- ✅ Charts will be created dynamically -->
+    <!-- ✅ Charts are created dynamically -->
     <div id="charts-root"></div>
   </div>
 
   <script>
-    // Track which top tab is currently active
+    // ----------------- GLOBAL STATE -----------------
     var currentTab = "home";
-
-    // Global date string shown in tabs
     var time = "";
-
-    // Keep discovered country codes here
-    let I3E_COUNTRIES = [];     // includes globals
-    let I3E_NON_GLOBAL = [];   // excludes globals
 
     const GLOBAL_SERIES = ["global", "global_weighted"];
 
     // Geographic blocks for HOME and SUBINDEX tables
-    // - India goes to Asia/Pacific block
-    // - Saudi Arabia goes to MENA block
+    // India -> Asia Pacific ; Saudi Arabia -> MENA / Other
     const BLOCKS = [
       { name: "North America", codes: ["united_states", "canada"] },
       { name: "Europe", codes: ["austria", "belgium", "france", "germany", "greece", "italy", "netherlands", "spain", "poland", "united_kingdom"] },
@@ -369,11 +363,12 @@
       { name: "MENA / Other", codes: ["israel", "turkey", "egypt", "south_africa", "saudi_arabia"] }
     ];
 
-    // Label overrides (cosmetic)
     const LABEL_OVERRIDES = {
       global_weighted: "Global Weight",
       global: "Global"
     };
+
+    let HOME_CONTENT_HTML = ""; // snapshot to restore Home content after visiting other tabs
 
     function normalizeCode(s) {
       return (s || "").trim().toLowerCase();
@@ -382,21 +377,18 @@
     function formatCountryName(code) {
       const c = normalizeCode(code);
       if (LABEL_OVERRIDES[c]) return LABEL_OVERRIDES[c];
-      return c.replace(/_/g, " ")
-              .replace(/\b\w/g, ch => ch.toUpperCase());
+      return c.replace(/_/g, " ").replace(/\b\w/g, ch => ch.toUpperCase());
     }
 
-    // Parse i3e_countries.txt header -> list of country codes (no date column)
     function parseCountriesHeader(text) {
       const lines = text.trim().split("\n").filter(l => l.trim().length);
       if (!lines.length) return [];
       let header = lines[0].split("\t").map(h => normalizeCode(h));
       if (header[0] === "") header.shift(); // empty index header cell
-      // header now corresponds to series columns
       return header.filter(Boolean);
     }
 
-    // Build sidebar links + chart containers dynamically
+    // ----------------- DYNAMIC SIDEBAR + CHART CONTAINERS -----------------
     function buildCountrySidebarAndCharts(allCodes) {
       const linksRoot = document.getElementById("country-links");
       const chartsRoot = document.getElementById("charts-root");
@@ -415,11 +407,11 @@
         const div = document.createElement("div");
         div.id = `chart-${code}`;
         div.className = "plot-container";
-        div.style.display = (code === "global") ? "block" : "none";
+        div.style.display = "none";
         chartsRoot.appendChild(div);
       });
 
-      // Click handlers
+      // Sidebar country click: show ONLY the selected chart (no tab switching)
       linksRoot.querySelectorAll("a[data-country]").forEach(link => {
         link.addEventListener("click", function(e) {
           e.preventDefault();
@@ -427,16 +419,19 @@
           const country = this.getAttribute("data-country");
           const containerId = `chart-${country}`;
 
+          // Hide forward/subindex views if user clicks countries
+          const forwardView = document.getElementById("forward-view");
+          if (forwardView) forwardView.style.display = "none";
+          document.getElementById("subindex-view").style.display = "none";
+
+          // Ensure home wrapper visible (same behavior as before)
+          document.getElementById("home-view").style.display = "flex";
+
           // Show/hide the home table depending on active tab
           const tableDiv = document.getElementById("table-container");
           if (tableDiv) {
             tableDiv.style.display = (currentTab === "home") ? "block" : "none";
           }
-
-          // Hide forward/subindex views
-          const forwardView = document.getElementById("forward-view");
-          if (forwardView) forwardView.style.display = "none";
-          document.getElementById("subindex-view").style.display = "none";
 
           // Switch chart
           hideAllCharts();
@@ -454,34 +449,7 @@
       });
     }
 
-    // Load "time" from i3e_countries.txt (last row date)
-    fetch("i3e_countries.txt")
-      .then(r => r.text())
-      .then(text => {
-        // Time = last row date (first column)
-        let lines = text.trim().split("\n");
-        if (lines.length < 2) return;
-        let lastLine = lines[lines.length - 1];
-        time = (lastLine.split("\t")[0] || "").trim();
-
-        // Discover countries from header
-        const codes = parseCountriesHeader(text);
-        I3E_COUNTRIES = codes.slice();
-        I3E_NON_GLOBAL = codes.filter(c => !GLOBAL_SERIES.includes(c));
-
-        // Build sidebar + chart containers
-        // Keep globals first for sidebar consistency
-        const ordered = GLOBAL_SERIES.filter(g => codes.includes(g)).concat(
-          I3E_NON_GLOBAL.slice()
-        );
-        buildCountrySidebarAndCharts(ordered);
-
-        // Build home table now that time is loaded
-        loadCountryTableFromText(text);
-      })
-      .catch(err => console.error("Error initializing from country data:", err));
-
-    // ✅ HOME TABLE (grouped by blocks; new countries automatically placed)
+    // ----------------- HOME TABLE (GROUPED) -----------------
     function loadCountryTableFromText(text) {
       let lines = text.trim().split("\n");
       if (lines.length < 3) return;
@@ -500,7 +468,6 @@
       let idxMap = {};
       codes.forEach((code, i) => { idxMap[code] = i; });
 
-      // Track which countries were placed into blocks
       const placed = new Set();
 
       function coloredDiff(curr, past) {
@@ -514,7 +481,7 @@
 
       function addRow(code, isEndBlock) {
         const i = idxMap[code];
-        if (i === undefined) return;
+        if (i === undefined) return "";
 
         const value = (dataRows[lastIdx][i] || "").trim();
         const prevValue = (dataRows[lastIdx - 1]?.[i] || "").trim();
@@ -535,26 +502,23 @@
       let tableHTML = "";
       tableHTML += "<tr><th>Country</th><th>I3E</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th></tr>";
 
-      // Render blocks, but only include countries that exist in the file
+      // Render blocks in order, with separators
       BLOCKS.forEach(block => {
         const existingInBlock = block.codes.filter(c => codes.includes(c));
         existingInBlock.forEach((code, j) => {
           placed.add(code);
-          tableHTML += addRow(code, j === existingInBlock.length - 1) || "";
+          tableHTML += addRow(code, j === existingInBlock.length - 1);
         });
       });
 
-      // Any additional countries not in known blocks (future additions)
+      // Extras (future additions not in blocks)
       const extras = codes
         .filter(c => c && !GLOBAL_SERIES.includes(c) && !placed.has(c));
+      extras.forEach((code, j) => {
+        tableHTML += addRow(code, j === extras.length - 1);
+      });
 
-      if (extras.length) {
-        extras.forEach((code, j) => {
-          tableHTML += addRow(code, j === extras.length - 1) || "";
-        });
-      }
-
-      // Globals at the end (bold)
+      // Globals at end (bold)
       GLOBAL_SERIES.forEach(code => {
         const i = idxMap[code];
         if (i === undefined) return;
@@ -580,7 +544,7 @@
       document.getElementById("table-container").innerHTML = fullHTML;
     }
 
-    // ---------- SUBINDEX TABLE ----------
+    // ----------------- SUBINDEX TABLE (GROUPED) -----------------
     function parseTSVDropIndex(text) {
       const lines = text.trim().split("\n").filter(l => l.trim().length > 0);
       if (lines.length < 2) return null;
@@ -605,21 +569,12 @@
           const idx30 = rows.length - 22;
           const idx365 = rows.length - 261;
 
-          // Discover countries from subindex columns like "<country>_idx"
+          // Discover countries by "<country>_idx"
           const discovered = new Set();
-          header.forEach(h => {
-            if (h.endsWith("_idx")) discovered.add(h.slice(0, -4));
-          });
+          header.forEach(h => { if (h.endsWith("_idx")) discovered.add(h.slice(0, -4)); });
 
-          function colIndex(colName) {
-            return header.indexOf(normalizeCode(colName));
-          }
-
-          function fmt(x) {
-            if (x === null || x === undefined) return "";
-            return ("" + x).trim();
-          }
-
+          function colIndex(colName) { return header.indexOf(normalizeCode(colName)); }
+          function fmt(x) { return (x === null || x === undefined) ? "" : ("" + x).trim(); }
           function diffSpan(curr, past, decimals=1) {
             let a = parseFloat(curr), b = parseFloat(past);
             if (isNaN(a) || isNaN(b)) return "";
@@ -642,10 +597,7 @@
           const brent30  = brentCol >= 0 ? fmt(rows[idx30]?.[brentCol]) : "";
           const brent365 = brentCol >= 0 ? fmt(rows[idx365]?.[brentCol]) : "";
 
-          // Determine which countries to show and in which order:
-          // 1) blocks in order (only those that exist in subindex)
-          // 2) extras (future additions)
-          // 3) global (bold, last) if present
+          // Order: blocks first, then extras, then global (bold)
           const placed = new Set();
           const inBlocks = [];
           BLOCKS.forEach(block => {
@@ -664,20 +616,14 @@
           const hasGlobal = discovered.has("global");
 
           let html = "";
-          html += "<table>";
-          html += "<tr>";
-          html += "<th>Country</th>";
-          compHeaders.forEach(c => {
-            html += `<th>${c.label}</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>`;
-          });
-          html += `<th>Brent</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>`;
-          html += "</tr>";
+          html += "<table><tr><th>Country</th>";
+          compHeaders.forEach(c => { html += `<th>${c.label}</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>`; });
+          html += `<th>Brent</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th></tr>`;
 
           function addRow(countryCode, isBold=false, isEndGroup=false) {
             const trStyle = isBold ? ' style="font-weight:bold;"' : "";
             const tdStyle = isEndGroup ? ' style="border-bottom: 2px solid #bbb;"' : "";
-            html += `<tr${trStyle}>`;
-            html += `<td${tdStyle}>${formatCountryName(countryCode)}</td>`;
+            html += `<tr${trStyle}><td${tdStyle}>${formatCountryName(countryCode)}</td>`;
 
             compHeaders.forEach(c => {
               const col = colIndex(`${countryCode}_${c.key}`);
@@ -699,16 +645,14 @@
             html += "</tr>";
           }
 
-          // Render by blocks with separators at block ends
+          // Render blocks with separators at block ends
           BLOCKS.forEach(block => {
             const existingInBlock = block.codes.filter(c => inBlocks.includes(c));
             existingInBlock.forEach((c, i) => addRow(c, false, i === existingInBlock.length - 1 && existingInBlock.length > 0));
           });
 
-          // Extras (future additions) with separator at end
-          if (extras.length) {
-            extras.forEach((c, i) => addRow(c, false, i === extras.length - 1));
-          }
+          // Extras (future additions)
+          if (extras.length) extras.forEach((c, i) => addRow(c, false, i === extras.length - 1));
 
           // Global last (bold)
           if (hasGlobal) addRow("global", true, false);
@@ -722,7 +666,7 @@
         .catch(err => console.error("Error loading subindex.txt:", err));
     }
 
-    // ---------- FORWARD TAB (USA + EU + JAPAN) ----------
+    // ----------------- FORWARD TAB -----------------
     const forwardSeries = {
       usa: { file: "i3e_f_usa.txt", title: "I3E FORWARD (USA)" },
       eu:  { file: "i3e_f_eu.txt",  title: "I3E FORWARD (EU)"  },
@@ -745,7 +689,6 @@
           const lines = text.trim().split('\n').filter(l => l.trim().length > 0);
           if (lines.length < 2) return;
 
-          // Expect TSV with header on first row; then date \t value
           const rows = lines.slice(1).map(line => line.split('\t'));
           const dates = rows.map(r => (r[0] || '').trim());
           const values = rows.map(r => parseFloat((r[1] || '').trim()));
@@ -767,16 +710,12 @@
         const latestDate = dates[dates.length - 1];
 
         const shapes = generateYearLines(startYear, endYear);
-
-        // Thick horizontal line at y = 100 (same as charts.js)
         shapes.push({
           type: "line",
           xref: "paper",
           yref: "y",
-          x0: 0,
-          x1: 1,
-          y0: 100,
-          y1: 100,
+          x0: 0, x1: 1,
+          y0: 100, y1: 100,
           line: { color: "#555", width: 1 },
         });
 
@@ -792,29 +731,21 @@
           <div id="${containerId}-plot" style="width: 100%; height: 60vw; max-height: 600px;"></div>
         `;
 
-        // Default window: last 10 years
         const lastDateObj = new Date(dates[dates.length - 1]);
         const start10Y = new Date(lastDateObj);
         start10Y.setFullYear(start10Y.getFullYear() - 10);
 
-        const forwardLineColor = "#00BFFF";
-        const forwardFillColor = "rgba(31,119,180,0.06)";
-
         Plotly.newPlot(
           `${containerId}-plot`,
-          [
-            {
-              x: dates,
-              y: values,
-              type: "scatter",
-              mode: "lines",
-              fill: "tozeroy",
-              fillcolor: forwardFillColor,
-              line: { color: forwardLineColor, width: 2 },
-              hovertemplate: "%{x|%Y-%m-%d}<br>Value: %{y}<extra></extra>",
-              name: "Forward",
-            },
-          ],
+          [{
+            x: dates, y: values,
+            type: "scatter", mode: "lines",
+            fill: "tozeroy",
+            fillcolor: "rgba(31,119,180,0.06)",
+            line: { color: "#00BFFF", width: 2 },
+            hovertemplate: "%{x|%Y-%m-%d}<br>Value: %{y}<extra></extra>",
+            name: "Forward",
+          }],
           {
             margin: { t: 30, b: 40 },
             yaxis: { range: [0, 250], title: "Index Value" },
@@ -824,10 +755,7 @@
               range: [start10Y.toISOString(), lastDateObj.toISOString()],
               tickangle: -90,
               tickformat: "%Y",
-              tickvals: Array.from(
-                { length: endYear - startYear + 1 },
-                (_, i) => `${startYear + i}-01-01`
-              ),
+              tickvals: Array.from({ length: endYear - startYear + 1 }, (_, i) => `${startYear + i}-01-01`),
               showgrid: false,
               ticks: "outside",
               ticklen: 4,
@@ -843,18 +771,12 @@
                 ],
               },
             },
-            shapes: shapes,
+            shapes,
             hovermode: "x unified",
             plot_bgcolor: "white",
             dragmode: false,
           },
-          {
-            displayModeBar: false,
-            scrollZoom: false,
-            doubleClick: false,
-            staticPlot: false,
-            responsive: true,
-          }
+          { displayModeBar: false, scrollZoom: false, doubleClick: false, staticPlot: false, responsive: true }
         );
       });
     }
@@ -872,22 +794,27 @@
       if (euDiv)  euDiv.style.display  = (key === 'eu')  ? 'block' : 'none';
       if (jpDiv)  jpDiv.style.display  = (key === 'jp')  ? 'block' : 'none';
 
-      const targetId =
-        (key === 'eu') ? 'chart-forward-eu' :
-        (key === 'jp') ? 'chart-forward-jp' :
-        'chart-forward-usa';
-
+      const targetId = (key === 'eu') ? 'chart-forward-eu' : (key === 'jp') ? 'chart-forward-jp' : 'chart-forward-usa';
       renderForwardChart(targetId, key);
 
       const chartDiv = document.getElementById(targetId);
-      if (window.Plotly && chartDiv) {
-        setTimeout(() => { try { Plotly.Plots.resize(chartDiv); } catch(e) {} }, 0);
-      }
+      if (window.Plotly && chartDiv) setTimeout(() => { try { Plotly.Plots.resize(chartDiv); } catch(e) {} }, 0);
     }
 
-    // ---------- NAV TABS ----------
+    // ----------------- VIEW HELPERS -----------------
     function hideAllCharts() {
       document.querySelectorAll('.plot-container').forEach(div => div.style.display = 'none');
+    }
+
+    function showGlobalChartDefault() {
+      // Only to be used in Home or Global Indices
+      hideAllCharts();
+      const g = document.getElementById("chart-global");
+      if (g) {
+        g.style.display = "block";
+        renderChart("chart-global", "global");
+        if (window.Plotly) setTimeout(() => { try { Plotly.Plots.resize(g); } catch(e) {} }, 0);
+      }
     }
 
     function showSubindex() {
@@ -902,16 +829,14 @@
     function showForward() {
       document.getElementById('subindex-view').style.display = 'none';
       document.getElementById('home-view').style.display = 'none';
-
       hideAllCharts();
-
       const forwardView = document.getElementById('forward-view');
       if (forwardView) forwardView.style.display = 'block';
-
       setForwardActive('usa');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    // ----------------- TOP NAV TABS -----------------
     document.querySelectorAll('.nav a[data-tab]').forEach(link => {
       link.addEventListener('click', function(e) {
         e.preventDefault();
@@ -922,7 +847,16 @@
         const tableDiv = document.getElementById('table-container');
 
         if (tab === 'home') {
-          location.reload();
+          document.getElementById('forward-view').style.display = 'none';
+          document.getElementById('subindex-view').style.display = 'none';
+          document.getElementById('home-view').style.display = 'flex';
+
+          // restore original home text content
+          if (HOME_CONTENT_HTML) contentDiv.innerHTML = HOME_CONTENT_HTML;
+
+          tableDiv.style.display = 'block';
+          showGlobalChartDefault();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           return;
         }
 
@@ -930,26 +864,24 @@
           document.getElementById('forward-view').style.display = 'none';
           document.getElementById('subindex-view').style.display = 'none';
           document.getElementById('home-view').style.display = 'flex';
+
           contentDiv.innerHTML = `<h2 style="text-align:left;">I3E Global Indices</h2>`;
           tableDiv.style.display = 'none';
-          hideAllCharts();
+
+          // ✅ show global by default ONLY here
+          showGlobalChartDefault();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           return;
         }
 
-        if (tab === 'subindex') {
-          showSubindex();
-          return;
-        }
-
-        if (tab === 'forward') {
-          showForward();
-          return;
-        }
+        if (tab === 'subindex') { showSubindex(); return; }
+        if (tab === 'forward')  { showForward();  return; }
 
         if (tab === 'data') {
           document.getElementById('forward-view').style.display = 'none';
           document.getElementById('subindex-view').style.display = 'none';
           document.getElementById('home-view').style.display = 'flex';
+
           contentDiv.innerHTML = `
             <p><a href="i3e_global.txt" target="_blank">DATA</a> - Download I3E global data (txt). Since 1990-01-01. Updated daily (${time}).</p>
             <p><a href="i3e_global_weighted.txt" target="_blank">DATA</a> - Download I3E global weighted data (txt). Since 1990-01-01. Updated daily (${time}).</p>
@@ -960,6 +892,8 @@
             <p><a href="i3e_f_jp.txt" target="_blank">DATA</a> - Download I3E FORWARD (JAPAN) data (txt). Since 2000-01-01. Updated daily (${time}).</p>
           `;
           tableDiv.style.display = 'none';
+
+          // ✅ do NOT show global chart here
           hideAllCharts();
           return;
         }
@@ -968,12 +902,15 @@
           document.getElementById('forward-view').style.display = 'none';
           document.getElementById('subindex-view').style.display = 'none';
           document.getElementById('home-view').style.display = 'flex';
+
           contentDiv.innerHTML = `
             <h2>Research Papers</h2>
             <p><a href="I3E.pdf" target="_blank">Working paper</a> - I3E Technical Note.</p>
             <p><a href="I3E_and_alternatives.pdf" target="_blank">Working paper</a> - Comparison I3E, WUI, EPU and WIX.</p>
           `;
           tableDiv.style.display = 'none';
+
+          // ✅ do NOT show global chart here
           hideAllCharts();
           return;
         }
@@ -982,6 +919,7 @@
           document.getElementById('forward-view').style.display = 'none';
           document.getElementById('subindex-view').style.display = 'none';
           document.getElementById('home-view').style.display = 'flex';
+
           contentDiv.innerHTML = `
             <p>
               Miguel Angel Ariño <br>
@@ -999,15 +937,18 @@
             </p>
           `;
           tableDiv.style.display = 'none';
+
+          // ✅ do NOT show global chart here
           hideAllCharts();
           return;
         }
       });
     });
 
-    // Initial render + forward buttons
+    // ----------------- INIT -----------------
     document.addEventListener("DOMContentLoaded", () => {
       currentTab = "home";
+      HOME_CONTENT_HTML = document.getElementById("content").innerHTML;
 
       // Forward toggle button handlers
       document.querySelectorAll('.forward-toggle button[data-forward]').forEach(btn => {
@@ -1019,14 +960,33 @@
         });
       });
 
-      // Initial chart (global) after the dynamic containers exist
-      // Containers are built once i3e_countries.txt fetch resolves.
-      // But if loaded very fast, this is safe.
-      setTimeout(() => {
-        if (document.getElementById("chart-global")) {
-          renderChart("chart-global", "global");
-        }
-      }, 0);
+      // Load i3e_countries.txt ONCE: get time + discover countries + build sidebar/containers + build table
+      fetch("i3e_countries.txt")
+        .then(r => r.text())
+        .then(text => {
+          let lines = text.trim().split("\n");
+          if (lines.length < 2) return;
+
+          // time from last row (first column)
+          let lastLine = lines[lines.length - 1];
+          time = (lastLine.split("\t")[0] || "").trim();
+
+          const codes = parseCountriesHeader(text);
+
+          // Order for sidebar: globals first, then the rest in file order
+          const ordered = GLOBAL_SERIES.filter(g => codes.includes(g)).concat(
+            codes.filter(c => !GLOBAL_SERIES.includes(c))
+          );
+
+          buildCountrySidebarAndCharts(ordered);
+          loadCountryTableFromText(text);
+
+          // ✅ Render global by default ONLY because we start in Home
+          if (currentTab === "home") {
+            showGlobalChartDefault();
+          }
+        })
+        .catch(err => console.error("Error initializing from i3e_countries.txt:", err));
     });
 
     // Resize helpers
