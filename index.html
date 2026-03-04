@@ -55,8 +55,7 @@
   <!-- Load Plotly and Custom Charts -->
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
-  <!-- 🔧 Shim: force responsive plots + immediate resize after newPlot
-     — also set default x-axis view to last 10 years if no range provided -->
+  <!-- 🔧 Shim (placeholder) -->
   <script>
     (function () {
       // Keep your existing shim here (if you have one in your repo).
@@ -142,6 +141,7 @@
     }
     .content p, .content li { font-size: 15px; }
     #table-container { min-width: 200px; }
+
     #table-container table, #subindex-table-container table {
       width: 100%;
       border-collapse: collapse;
@@ -259,30 +259,8 @@
   <div class="sidebar">
     <img src="favicon_XL.png" alt="I3E Economic Uncertainty Index logo" style="display:block; margin:0 auto 18px auto; width:100%; height:auto; max-width:120px;">
     <h2>Countries</h2>
-    <a href="#" data-country="global">Global</a>
-    <a href="#" data-country="global_weighted">Global Weight</a>
-    <a href="#" data-country="australia">Australia</a>
-    <a href="#" data-country="austria">Austria</a>
-    <a href="#" data-country="belgium">Belgium</a>
-    <a href="#" data-country="brazil">Brazil</a>
-    <a href="#" data-country="canada">Canada</a>
-    <a href="#" data-country="china">China</a>
-    <a href="#" data-country="egypt">Egypt</a>
-    <a href="#" data-country="france">France</a>
-    <a href="#" data-country="germany">Germany</a>
-    <a href="#" data-country="greece">Greece</a>
-    <a href="#" data-country="israel">Israel</a>
-    <a href="#" data-country="italy">Italy</a>
-    <a href="#" data-country="japan">Japan</a>
-    <a href="#" data-country="mexico">Mexico</a>
-    <a href="#" data-country="netherlands">Netherlands</a>
-    <a href="#" data-country="poland">Poland</a>
-    <a href="#" data-country="south_africa">South Africa</a>
-    <a href="#" data-country="south_korea">South Korea</a>
-    <a href="#" data-country="spain">Spain</a>
-    <a href="#" data-country="turkey">Turkey</a>
-    <a href="#" data-country="united_kingdom">United Kingdom</a>
-    <a href="#" data-country="united_states">United States</a>
+    <!-- ✅ dynamic -->
+    <div id="country-links"></div>
   </div>
 
   <div class="main">
@@ -363,32 +341,8 @@
       <div id="chart-forward-jp" class="plot-container" style="display:none;"></div>
     </div>
 
-    <!-- Chart containers -->
-    <div id="chart-global" class="plot-container"></div>
-    <div id="chart-global_weighted" class="plot-container" style="display:none;"></div>
-
-    <div id="chart-australia" class="plot-container" style="display:none;"></div>
-    <div id="chart-austria" class="plot-container" style="display:none;"></div>
-    <div id="chart-belgium" class="plot-container" style="display:none;"></div>
-    <div id="chart-brazil" class="plot-container" style="display:none;"></div>
-    <div id="chart-canada" class="plot-container" style="display:none;"></div>
-    <div id="chart-china" class="plot-container" style="display:none;"></div>
-    <div id="chart-egypt" class="plot-container" style="display:none;"></div>
-    <div id="chart-france" class="plot-container" style="display:none;"></div>
-    <div id="chart-germany" class="plot-container" style="display:none;"></div>
-    <div id="chart-greece" class="plot-container" style="display:none;"></div>
-    <div id="chart-israel" class="plot-container" style="display:none;"></div>
-    <div id="chart-italy" class="plot-container" style="display:none;"></div>
-    <div id="chart-japan" class="plot-container" style="display:none;"></div>
-    <div id="chart-mexico" class="plot-container" style="display:none;"></div>
-    <div id="chart-netherlands" class="plot-container" style="display:none;"></div>
-    <div id="chart-poland" class="plot-container" style="display:none;"></div>
-    <div id="chart-south_africa" class="plot-container" style="display:none;"></div>
-    <div id="chart-south_korea" class="plot-container" style="display:none;"></div>
-    <div id="chart-spain" class="plot-container" style="display:none;"></div>
-    <div id="chart-turkey" class="plot-container" style="display:none;"></div>
-    <div id="chart-united_kingdom" class="plot-container" style="display:none;"></div>
-    <div id="chart-united_states" class="plot-container" style="display:none;"></div>
+    <!-- ✅ Charts will be created dynamically -->
+    <div id="charts-root"></div>
   </div>
 
   <script>
@@ -398,154 +352,267 @@
     // Global date string shown in tabs
     var time = "";
 
-    // Load "time" from i3e_countries.txt (last row date)
-    fetch('i3e_countries.txt')
-      .then(r => r.text())
-      .then(text => {
-        let lines = text.trim().split('\n');
-        if (lines.length < 2) return;
-        let lastLine = lines[lines.length - 1];
-        time = lastLine.split('\t')[0].trim();
-        loadCountryTable(); // build home table after time loaded
-      })
-      .catch(err => console.error('Error loading time from country data:', err));
+    // Keep discovered country codes here
+    let I3E_COUNTRIES = [];     // includes globals
+    let I3E_NON_GLOBAL = [];   // excludes globals
 
-    function formatCountryName(name) {
-      return name.replace(/_/g, ' ')
-                 .replace(/\b\w/g, c => c.toUpperCase());
+    const GLOBAL_SERIES = ["global", "global_weighted"];
+
+    // Geographic blocks for HOME and SUBINDEX tables
+    // - India goes to Asia/Pacific block
+    // - Saudi Arabia goes to MENA block
+    const BLOCKS = [
+      { name: "North America", codes: ["united_states", "canada"] },
+      { name: "Europe", codes: ["austria", "belgium", "france", "germany", "greece", "italy", "netherlands", "spain", "poland", "united_kingdom"] },
+      { name: "Asia Pacific", codes: ["china", "japan", "south_korea", "australia", "india"] },
+      { name: "Latin America", codes: ["brazil", "mexico"] },
+      { name: "MENA / Other", codes: ["israel", "turkey", "egypt", "south_africa", "saudi_arabia"] }
+    ];
+
+    // Label overrides (cosmetic)
+    const LABEL_OVERRIDES = {
+      global_weighted: "Global Weight",
+      global: "Global"
+    };
+
+    function normalizeCode(s) {
+      return (s || "").trim().toLowerCase();
     }
 
-    // ✅ HOME TABLE
-    function loadCountryTable() {
-      fetch('i3e_countries.txt')
-        .then(r => r.text())
-        .then(text => {
-          let lines = text.trim().split('\n');
-          if (lines.length < 3) return;
+    function formatCountryName(code) {
+      const c = normalizeCode(code);
+      if (LABEL_OVERRIDES[c]) return LABEL_OVERRIDES[c];
+      return c.replace(/_/g, " ")
+              .replace(/\b\w/g, ch => ch.toUpperCase());
+    }
 
-          let headerParts = lines[0].split('\t');
-          if (headerParts[0].trim() === '') headerParts.shift();
+    // Parse i3e_countries.txt header -> list of country codes (no date column)
+    function parseCountriesHeader(text) {
+      const lines = text.trim().split("\n").filter(l => l.trim().length);
+      if (!lines.length) return [];
+      let header = lines[0].split("\t").map(h => normalizeCode(h));
+      if (header[0] === "") header.shift(); // empty index header cell
+      // header now corresponds to series columns
+      return header.filter(Boolean);
+    }
 
-          // drop date index column for all rows
-          let dataRows = lines.slice(1).map(row => row.split('\t').slice(1));
-          let lastIdx = dataRows.length - 1;
-          let idx30 = dataRows.length - 22;
-          let idx365 = dataRows.length - 261;
+    // Build sidebar links + chart containers dynamically
+    function buildCountrySidebarAndCharts(allCodes) {
+      const linksRoot = document.getElementById("country-links");
+      const chartsRoot = document.getElementById("charts-root");
+      if (!linksRoot || !chartsRoot) return;
 
-          const countryBlocks = [
-            ["united_states", "canada"],
-            ["austria", "belgium", "france", "germany", "greece", "italy", "netherlands", "spain", "poland", "united_kingdom"],
-            ["china", "japan", "south_korea", "australia"],
-            ["brazil", "mexico"],
-            ["israel", "turkey", "egypt", "south_africa"]
-          ];
-          const globalBlock = ["global", "global_weighted"];
+      linksRoot.innerHTML = "";
+      chartsRoot.innerHTML = "";
 
-          let countryIndexMap = {};
-          headerParts.forEach((name, idx) => {
-            countryIndexMap[name.trim().toLowerCase()] = idx;
-          });
+      allCodes.forEach(code => {
+        const a = document.createElement("a");
+        a.href = "#";
+        a.setAttribute("data-country", code);
+        a.textContent = formatCountryName(code);
+        linksRoot.appendChild(a);
 
-          let tableHTML = '';
-          tableHTML += '<tr><th>Country</th><th>I3E</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th></tr>';
+        const div = document.createElement("div");
+        div.id = `chart-${code}`;
+        div.className = "plot-container";
+        div.style.display = (code === "global") ? "block" : "none";
+        chartsRoot.appendChild(div);
+      });
 
-          function coloredDiff(curr, past) {
-            let a = parseFloat(curr), b = parseFloat(past);
-            if (isNaN(a) || isNaN(b)) return "";
-            let d = a - b;
-            return d >= 0
-              ? `<span style="color:red;">+${d.toFixed(1)}</span>`
-              : `<span style="color:green;">${d.toFixed(1)}</span>`;
+      // Click handlers
+      linksRoot.querySelectorAll("a[data-country]").forEach(link => {
+        link.addEventListener("click", function(e) {
+          e.preventDefault();
+
+          const country = this.getAttribute("data-country");
+          const containerId = `chart-${country}`;
+
+          // Show/hide the home table depending on active tab
+          const tableDiv = document.getElementById("table-container");
+          if (tableDiv) {
+            tableDiv.style.display = (currentTab === "home") ? "block" : "none";
           }
 
-          countryBlocks.forEach(block => {
-            block.forEach((code, countryIdx) => {
-              let i = countryIndexMap[code];
-              if (i === undefined) return;
+          // Hide forward/subindex views
+          const forwardView = document.getElementById("forward-view");
+          if (forwardView) forwardView.style.display = "none";
+          document.getElementById("subindex-view").style.display = "none";
 
-              let countryName = formatCountryName(headerParts[i].trim());
-              let value = (dataRows[lastIdx][i] || "").trim();
-              let prevValue = (dataRows[lastIdx - 1]?.[i] || "").trim();
-              let val30 = (idx30 >= 0 ? (dataRows[idx30]?.[i] || "") : "").trim();
-              let val365 = (idx365 >= 0 ? (dataRows[idx365]?.[i] || "") : "").trim();
+          // Switch chart
+          hideAllCharts();
+          const chartDiv = document.getElementById(containerId);
+          if (chartDiv) {
+            chartDiv.style.display = "block";
+            chartDiv.scrollIntoView({ behavior: "smooth" });
+            renderChart(containerId, country);
 
-              const isLastInBlock = (countryIdx === block.length - 1);
-              const tdStyle = isLastInBlock ? ' style="border-bottom: 2px solid #bbb;"' : '';
+            if (window.Plotly) {
+              setTimeout(() => { try { Plotly.Plots.resize(chartDiv); } catch(e) {} }, 0);
+            }
+          }
+        });
+      });
+    }
 
-              tableHTML += `<tr>
-                <td${tdStyle}>${countryName}</td>
-                <td${tdStyle}>${value}</td>
-                <td${tdStyle}>${coloredDiff(value, prevValue)}</td>
-                <td${tdStyle}>${coloredDiff(value, val30)}</td>
-                <td${tdStyle}>${coloredDiff(value, val365)}</td>
-              </tr>`;
-            });
-          });
+    // Load "time" from i3e_countries.txt (last row date)
+    fetch("i3e_countries.txt")
+      .then(r => r.text())
+      .then(text => {
+        // Time = last row date (first column)
+        let lines = text.trim().split("\n");
+        if (lines.length < 2) return;
+        let lastLine = lines[lines.length - 1];
+        time = (lastLine.split("\t")[0] || "").trim();
 
-          globalBlock.forEach(code => {
-            let i = countryIndexMap[code];
-            if (i === undefined) return;
+        // Discover countries from header
+        const codes = parseCountriesHeader(text);
+        I3E_COUNTRIES = codes.slice();
+        I3E_NON_GLOBAL = codes.filter(c => !GLOBAL_SERIES.includes(c));
 
-            let countryName = formatCountryName(headerParts[i].trim());
-            let value = (dataRows[lastIdx][i] || "").trim();
-            let prevValue = (dataRows[lastIdx - 1]?.[i] || "").trim();
-            let val30 = (idx30 >= 0 ? (dataRows[idx30]?.[i] || "") : "").trim();
-            let val365 = (idx365 >= 0 ? (dataRows[idx365]?.[i] || "") : "").trim();
+        // Build sidebar + chart containers
+        // Keep globals first for sidebar consistency
+        const ordered = GLOBAL_SERIES.filter(g => codes.includes(g)).concat(
+          I3E_NON_GLOBAL.slice()
+        );
+        buildCountrySidebarAndCharts(ordered);
 
-            tableHTML += `<tr style="font-weight:bold;">
-              <td>${countryName}</td>
-              <td>${value}</td>
-              <td>${coloredDiff(value, prevValue)}</td>
-              <td>${coloredDiff(value, val30)}</td>
-              <td>${coloredDiff(value, val365)}</td>
-            </tr>`;
-          });
+        // Build home table now that time is loaded
+        loadCountryTableFromText(text);
+      })
+      .catch(err => console.error("Error initializing from country data:", err));
 
-          let fullHTML =
-            `<div style="font-size:14px; margin-bottom:10px;">Date: ${time}<br>I3E: last 1D: Δ1-day 1M: Δ1-month 1Y: Δ1-year</div>
-             <table>${tableHTML}</table>`;
+    // ✅ HOME TABLE (grouped by blocks; new countries automatically placed)
+    function loadCountryTableFromText(text) {
+      let lines = text.trim().split("\n");
+      if (lines.length < 3) return;
 
-          document.getElementById('table-container').innerHTML = fullHTML;
-        })
-        .catch(err => console.error('Error loading country data:', err));
+      let headerParts = lines[0].split("\t");
+      if (headerParts[0].trim() === "") headerParts.shift();
+      const codes = headerParts.map(h => normalizeCode(h));
+
+      // drop date index column for all rows
+      let dataRows = lines.slice(1).map(row => row.split("\t").slice(1));
+      let lastIdx = dataRows.length - 1;
+      let idx30 = dataRows.length - 22;
+      let idx365 = dataRows.length - 261;
+
+      // Map code -> column index
+      let idxMap = {};
+      codes.forEach((code, i) => { idxMap[code] = i; });
+
+      // Track which countries were placed into blocks
+      const placed = new Set();
+
+      function coloredDiff(curr, past) {
+        let a = parseFloat(curr), b = parseFloat(past);
+        if (isNaN(a) || isNaN(b)) return "";
+        let d = a - b;
+        return d >= 0
+          ? `<span style="color:red;">+${d.toFixed(1)}</span>`
+          : `<span style="color:green;">${d.toFixed(1)}</span>`;
+      }
+
+      function addRow(code, isEndBlock) {
+        const i = idxMap[code];
+        if (i === undefined) return;
+
+        const value = (dataRows[lastIdx][i] || "").trim();
+        const prevValue = (dataRows[lastIdx - 1]?.[i] || "").trim();
+        const val30 = (idx30 >= 0 ? (dataRows[idx30]?.[i] || "") : "").trim();
+        const val365 = (idx365 >= 0 ? (dataRows[idx365]?.[i] || "") : "").trim();
+
+        const tdStyle = isEndBlock ? ' style="border-bottom: 2px solid #bbb;"' : "";
+
+        return `<tr>
+          <td${tdStyle}>${formatCountryName(code)}</td>
+          <td${tdStyle}>${value}</td>
+          <td${tdStyle}>${coloredDiff(value, prevValue)}</td>
+          <td${tdStyle}>${coloredDiff(value, val30)}</td>
+          <td${tdStyle}>${coloredDiff(value, val365)}</td>
+        </tr>`;
+      }
+
+      let tableHTML = "";
+      tableHTML += "<tr><th>Country</th><th>I3E</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th></tr>";
+
+      // Render blocks, but only include countries that exist in the file
+      BLOCKS.forEach(block => {
+        const existingInBlock = block.codes.filter(c => codes.includes(c));
+        existingInBlock.forEach((code, j) => {
+          placed.add(code);
+          tableHTML += addRow(code, j === existingInBlock.length - 1) || "";
+        });
+      });
+
+      // Any additional countries not in known blocks (future additions)
+      const extras = codes
+        .filter(c => c && !GLOBAL_SERIES.includes(c) && !placed.has(c));
+
+      if (extras.length) {
+        extras.forEach((code, j) => {
+          tableHTML += addRow(code, j === extras.length - 1) || "";
+        });
+      }
+
+      // Globals at the end (bold)
+      GLOBAL_SERIES.forEach(code => {
+        const i = idxMap[code];
+        if (i === undefined) return;
+
+        const value = (dataRows[lastIdx][i] || "").trim();
+        const prevValue = (dataRows[lastIdx - 1]?.[i] || "").trim();
+        const val30 = (idx30 >= 0 ? (dataRows[idx30]?.[i] || "") : "").trim();
+        const val365 = (idx365 >= 0 ? (dataRows[idx365]?.[i] || "") : "").trim();
+
+        tableHTML += `<tr style="font-weight:bold;">
+          <td>${formatCountryName(code)}</td>
+          <td>${value}</td>
+          <td>${coloredDiff(value, prevValue)}</td>
+          <td>${coloredDiff(value, val30)}</td>
+          <td>${coloredDiff(value, val365)}</td>
+        </tr>`;
+      });
+
+      let fullHTML =
+        `<div style="font-size:14px; margin-bottom:10px;">Date: ${time}<br>I3E: last 1D: Δ1-day 1M: Δ1-month 1Y: Δ1-year</div>
+         <table>${tableHTML}</table>`;
+
+      document.getElementById("table-container").innerHTML = fullHTML;
     }
 
     // ---------- SUBINDEX TABLE ----------
     function parseTSVDropIndex(text) {
-      const lines = text.trim().split('\n').filter(l => l.trim().length > 0);
+      const lines = text.trim().split("\n").filter(l => l.trim().length > 0);
       if (lines.length < 2) return null;
 
-      let header = lines[0].split('\t');
-      if (header[0].trim() === '') header.shift();
+      let header = lines[0].split("\t");
+      if (header[0].trim() === "") header.shift();
 
-      const rows = lines.slice(1).map(line => line.split('\t').slice(1));
+      const rows = lines.slice(1).map(line => line.split("\t").slice(1));
       return { header, rows };
     }
 
     function buildSubindexTable() {
-      fetch('subindex.txt')
+      fetch("subindex.txt")
         .then(r => r.text())
         .then(text => {
           const parsed = parseTSVDropIndex(text);
           if (!parsed) return;
 
-          const header = parsed.header.map(h => h.trim().toLowerCase());
+          const header = parsed.header.map(h => normalizeCode(h));
           const rows = parsed.rows;
           const lastIdx = rows.length - 1;
           const idx30 = rows.length - 22;
           const idx365 = rows.length - 261;
 
-          const groups = [
-            ["united_states", "canada"],
-            ["austria", "belgium", "france", "germany", "greece", "italy", "netherlands", "spain", "poland", "united_kingdom"],
-            ["china", "japan", "south_korea", "australia"],
-            ["brazil", "mexico"],
-            ["israel", "turkey", "egypt", "south_africa"]
-          ];
-          const globalCountry = "global";
+          // Discover countries from subindex columns like "<country>_idx"
+          const discovered = new Set();
+          header.forEach(h => {
+            if (h.endsWith("_idx")) discovered.add(h.slice(0, -4));
+          });
 
           function colIndex(colName) {
-            return header.indexOf(colName.toLowerCase());
+            return header.indexOf(normalizeCode(colName));
           }
 
           function fmt(x) {
@@ -562,37 +629,55 @@
               : `<span style="color:green;">${d.toFixed(decimals)}</span>`;
           }
 
-          const brentCol = colIndex("brent");
-          const brentLast = brentCol >= 0 ? fmt(rows[lastIdx][brentCol]) : "";
-          const brentPrev = brentCol >= 0 ? fmt(rows[lastIdx - 1]?.[brentCol]) : "";
-          const brent30  = brentCol >= 0 ? fmt(rows[idx30]?.[brentCol]) : "";
-          const brent365 = brentCol >= 0 ? fmt(rows[idx365]?.[brentCol]) : "";
-
-          let html = "";
-          html += "<table>";
-          html += "<tr>";
-          html += "<th>Country</th>";
-
           const compHeaders = [
             { key: "idx",  label: "IDX"  },
             { key: "bond", label: "Bond" },
             { key: "fx",   label: "FX"   }
           ];
 
+          // Brent column (global, same for all rows)
+          const brentCol = colIndex("brent");
+          const brentLast = brentCol >= 0 ? fmt(rows[lastIdx][brentCol]) : "";
+          const brentPrev = brentCol >= 0 ? fmt(rows[lastIdx - 1]?.[brentCol]) : "";
+          const brent30  = brentCol >= 0 ? fmt(rows[idx30]?.[brentCol]) : "";
+          const brent365 = brentCol >= 0 ? fmt(rows[idx365]?.[brentCol]) : "";
+
+          // Determine which countries to show and in which order:
+          // 1) blocks in order (only those that exist in subindex)
+          // 2) extras (future additions)
+          // 3) global (bold, last) if present
+          const placed = new Set();
+          const inBlocks = [];
+          BLOCKS.forEach(block => {
+            block.codes.forEach(c => {
+              if (discovered.has(c) && !GLOBAL_SERIES.includes(c)) {
+                inBlocks.push(c);
+                placed.add(c);
+              }
+            });
+          });
+
+          const extras = Array.from(discovered)
+            .filter(c => c && !GLOBAL_SERIES.includes(c) && !placed.has(c))
+            .sort();
+
+          const hasGlobal = discovered.has("global");
+
+          let html = "";
+          html += "<table>";
+          html += "<tr>";
+          html += "<th>Country</th>";
           compHeaders.forEach(c => {
             html += `<th>${c.label}</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>`;
           });
-
           html += `<th>Brent</th><th>Δ1D</th><th>Δ1M</th><th>Δ1Y</th>`;
           html += "</tr>";
 
-          function addRow(countryCode, isBold, isEndGroup) {
-            const name = formatCountryName(countryCode);
+          function addRow(countryCode, isBold=false, isEndGroup=false) {
             const trStyle = isBold ? ' style="font-weight:bold;"' : "";
-            html += `<tr${trStyle}>`;
-
             const tdStyle = isEndGroup ? ' style="border-bottom: 2px solid #bbb;"' : "";
-            html += `<td${tdStyle}>${name}</td>`;
+            html += `<tr${trStyle}>`;
+            html += `<td${tdStyle}>${formatCountryName(countryCode)}</td>`;
 
             compHeaders.forEach(c => {
               const col = colIndex(`${countryCode}_${c.key}`);
@@ -611,17 +696,22 @@
             html += `<td${tdStyle}>${diffSpan(brentLast, brentPrev)}</td>`;
             html += `<td${tdStyle}>${diffSpan(brentLast, brent30)}</td>`;
             html += `<td${tdStyle}>${diffSpan(brentLast, brent365)}</td>`;
-
             html += "</tr>";
           }
 
-          groups.forEach(group => {
-            group.forEach((cc, idx) => {
-              addRow(cc, false, idx === group.length - 1);
-            });
+          // Render by blocks with separators at block ends
+          BLOCKS.forEach(block => {
+            const existingInBlock = block.codes.filter(c => inBlocks.includes(c));
+            existingInBlock.forEach((c, i) => addRow(c, false, i === existingInBlock.length - 1 && existingInBlock.length > 0));
           });
 
-          addRow(globalCountry, true, false);
+          // Extras (future additions) with separator at end
+          if (extras.length) {
+            extras.forEach((c, i) => addRow(c, false, i === extras.length - 1));
+          }
+
+          // Global last (bold)
+          if (hasGlobal) addRow("global", true, false);
 
           html += "</table>";
 
@@ -707,7 +797,6 @@
         const start10Y = new Date(lastDateObj);
         start10Y.setFullYear(start10Y.getFullYear() - 10);
 
-        // Keep same look as your existing Forward plot
         const forwardLineColor = "#00BFFF";
         const forwardFillColor = "rgba(31,119,180,0.06)";
 
@@ -771,12 +860,10 @@
     }
 
     function setForwardActive(key) {
-      // Toggle button active state
       document.querySelectorAll('.forward-toggle button[data-forward]').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-forward') === key);
       });
 
-      // Toggle which forward chart container is visible
       const usaDiv = document.getElementById('chart-forward-usa');
       const euDiv  = document.getElementById('chart-forward-eu');
       const jpDiv  = document.getElementById('chart-forward-jp');
@@ -785,7 +872,6 @@
       if (euDiv)  euDiv.style.display  = (key === 'eu')  ? 'block' : 'none';
       if (jpDiv)  jpDiv.style.display  = (key === 'jp')  ? 'block' : 'none';
 
-      // Render the selected chart
       const targetId =
         (key === 'eu') ? 'chart-forward-eu' :
         (key === 'jp') ? 'chart-forward-jp' :
@@ -793,7 +879,6 @@
 
       renderForwardChart(targetId, key);
 
-      // Resize after paint
       const chartDiv = document.getElementById(targetId);
       if (window.Plotly && chartDiv) {
         setTimeout(() => { try { Plotly.Plots.resize(chartDiv); } catch(e) {} }, 0);
@@ -818,16 +903,12 @@
       document.getElementById('subindex-view').style.display = 'none';
       document.getElementById('home-view').style.display = 'none';
 
-      // Hide any country/global charts
       hideAllCharts();
 
-      // Show forward wrapper (buttons + plot containers)
       const forwardView = document.getElementById('forward-view');
       if (forwardView) forwardView.style.display = 'block';
 
-      // Default: show USA forward
       setForwardActive('usa');
-
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -924,46 +1005,9 @@
       });
     });
 
-    // Sidebar: country chart selection
-    // ✅ FIX: Do NOT switch tabs/views when clicking countries.
-    // Only show the selected chart, and only show the home table if currentTab === "home".
-    document.querySelectorAll('.sidebar a[data-country]').forEach(link => {
-      link.addEventListener('click', function(e) {
-        e.preventDefault();
-
-        const country = this.getAttribute('data-country');
-        const containerId = `chart-${country}`;
-
-        // Show/hide the home table depending on active tab
-        const tableDiv = document.getElementById('table-container');
-        if (tableDiv) {
-          tableDiv.style.display = (currentTab === "home") ? "block" : "none";
-        }
-
-        // Hide forward wrapper and subindex wrapper if user clicks countries
-        const forwardView = document.getElementById('forward-view');
-        if (forwardView) forwardView.style.display = 'none';
-        document.getElementById('subindex-view').style.display = 'none';
-
-        // Just switch chart.
-        hideAllCharts();
-        const chartDiv = document.getElementById(containerId);
-        if (chartDiv) {
-          chartDiv.style.display = 'block';
-          chartDiv.scrollIntoView({ behavior: 'smooth' });
-          renderChart(containerId, country);
-
-          if (window.Plotly) {
-            setTimeout(() => { try { Plotly.Plots.resize(chartDiv); } catch(e) {} }, 0);
-          }
-        }
-      });
-    });
-
-    // Initial render
+    // Initial render + forward buttons
     document.addEventListener("DOMContentLoaded", () => {
       currentTab = "home";
-      renderChart("chart-global", "global");
 
       // Forward toggle button handlers
       document.querySelectorAll('.forward-toggle button[data-forward]').forEach(btn => {
@@ -974,6 +1018,15 @@
           setForwardActive(key);
         });
       });
+
+      // Initial chart (global) after the dynamic containers exist
+      // Containers are built once i3e_countries.txt fetch resolves.
+      // But if loaded very fast, this is safe.
+      setTimeout(() => {
+        if (document.getElementById("chart-global")) {
+          renderChart("chart-global", "global");
+        }
+      }, 0);
     });
 
     // Resize helpers
