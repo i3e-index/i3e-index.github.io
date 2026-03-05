@@ -28,8 +28,8 @@ function generateYearLines(startYear, endYear) {
 
 // ----------------- CONFIG (single source of truth) -----------------
 const RIGHT_PAD = {
-  frac: 0.03,     // 3% of current visible window
-  minDays: 7,     // minimum padding even for short windows (1M etc.)
+  frac: 0.02,     // 3% of current visible window
+  minDays: 3,     // minimum padding even for short windows (1M etc.)
   snapMidnight: true,
 };
 
