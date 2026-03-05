@@ -29,7 +29,7 @@ function generateYearLines(startYear, endYear) {
  * - Snaps padded end to midnight to avoid edge clipping.
  *
  * padFrac: e.g. 0.05 = 5% of the current window width
- * minDays: ensures "plenty of room" even for short windows
+ * minDays: ensures some room even for short windows
  */
 function paddedEndByWindow(startDateObj, endDateObj, padFrac = 0.03, minDays = 5) {
   const startMs = startDateObj.getTime();
@@ -108,10 +108,7 @@ function renderChart(containerId, columnKey) {
       x1: 1,
       y0: 100,
       y1: 100,
-      line: {
-        color: "#555",
-        width: 1,
-      },
+      line: { color: "#555", width: 1 },
     });
 
     const plotTitle = formatTitle(columnKey);
@@ -129,18 +126,47 @@ function renderChart(containerId, columnKey) {
       <div id="${containerId}-plot" style="width: 100%; height: 60vw; max-height: 600px;"></div>
     `;
 
-    // Default window: last 10 years (using the last data date, not "today")
-    const lastDateObj = new Date(dates[dates.length - 1]);
-    const start10Y = new Date(lastDateObj);
+    const plotEl = document.getElementById(`${containerId}-plot`);
+    if (!plotEl) return;
+
+    // Data bounds
+    const dataStart = new Date(dates[0]);
+    dataStart.setHours(0, 0, 0, 0);
+
+    const dataEnd = new Date(dates[dates.length - 1]);
+    dataEnd.setHours(0, 0, 0, 0);
+
+    // Default window: last 10 years (using last data date)
+    const start10Y = new Date(dataEnd);
     start10Y.setFullYear(start10Y.getFullYear() - 10);
     start10Y.setHours(0, 0, 0, 0);
 
-    // ✅ Right padding by % of window + minimum days to ensure plenty of room
-    // Increase padFrac/minDays if you want even more whitespace on the right
-    const paddedEnd = paddedEndByWindow(start10Y, lastDateObj, 0.07, 21);
+    // ✅ Tune these two numbers to your taste
+    const PAD_FRAC = 0.03; // 3% of the visible window width
+    const MIN_DAYS = 7;    // at least 7 days of padding
+
+    const paddedEnd = paddedEndByWindow(start10Y, dataEnd, PAD_FRAC, MIN_DAYS);
+
+    // Helper: apply padding using a given left edge
+    function applyRightPadding(leftISO) {
+      const left = new Date(leftISO);
+      if (!isFinite(left.getTime())) return;
+
+      left.setHours(0, 0, 0, 0);
+
+      // Clamp left to dataStart (avoid weirdness)
+      const clampedLeft = new Date(Math.max(left.getTime(), dataStart.getTime()));
+
+      const paddedRight = paddedEndByWindow(clampedLeft, dataEnd, PAD_FRAC, MIN_DAYS);
+
+      return {
+        "xaxis.autorange": false,
+        "xaxis.range": [clampedLeft.toISOString(), paddedRight.toISOString()],
+      };
+    }
 
     Plotly.newPlot(
-      `${containerId}-plot`,
+      plotEl,
       [
         {
           x: dates,
@@ -159,11 +185,8 @@ function renderChart(containerId, columnKey) {
         yaxis: { range: [0, 250], title: "Index Value" },
         xaxis: {
           type: "date",
-
-          // ✅ Force initial view to last 10 years + padded right end
           autorange: false,
           range: [start10Y.toISOString(), paddedEnd.toISOString()],
-
           tickangle: -90,
           tickformat: "%Y",
           tickvals: Array.from(
@@ -175,7 +198,6 @@ function renderChart(containerId, columnKey) {
           ticklen: 4,
           tickcolor: "#999",
           rangeselector: {
-            // 0=1M, 1=1Y, 2=5Y, 3=10Y, 4=MAX
             active: 3,
             buttons: [
               { count: 1, label: "1M", step: "month", stepmode: "backward" },
@@ -198,6 +220,46 @@ function renderChart(containerId, columnKey) {
         staticPlot: false,
         responsive: true,
       }
-    );
+    ).then(() => {
+      // ✅ Ensure padding persists after clicking 1M / 1Y / 5Y / 10Y / MAX
+      // Plotly will relayout the x-axis; we re-apply padded right edge after each relayout.
+      let guard = false;
+
+      plotEl.on("plotly_relayout", (ev) => {
+        if (guard) return;
+
+        // Try to read the new left edge chosen by Plotly
+        const leftISO =
+          ev["xaxis.range[0]"] ||
+          (Array.isArray(ev["xaxis.range"]) ? ev["xaxis.range"][0] : null);
+
+        // If we don't have a left edge (some autorange cases), use full data start
+        const effectiveLeftISO = leftISO || dataStart.toISOString();
+
+        // Compute desired padded range for this window
+        const relayoutPatch = applyRightPadding(effectiveLeftISO);
+        if (!relayoutPatch) return;
+
+        // If Plotly already has a right edge beyond the data end, don't fight it.
+        const rightISO =
+          ev["xaxis.range[1]"] ||
+          (Array.isArray(ev["xaxis.range"]) ? ev["xaxis.range"][1] : null);
+
+        if (rightISO) {
+          const right = new Date(rightISO);
+          if (isFinite(right.getTime()) && right.getTime() > dataEnd.getTime()) {
+            // Still ensure at least our padding if user zoomed *past* the padded end:
+            // we leave it alone (user intent).
+            return;
+          }
+        }
+
+        // Apply patch
+        guard = true;
+        Plotly.relayout(plotEl, relayoutPatch).finally(() => {
+          guard = false;
+        });
+      });
+    });
   });
 }
