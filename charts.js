@@ -31,7 +31,7 @@ function generateYearLines(startYear, endYear) {
  * padFrac: e.g. 0.05 = 5% of the current window width
  * minDays: ensures "plenty of room" even for short windows
  */
-function paddedEndByWindow(startDateObj, endDateObj, padFrac = 0.06, minDays = 14) {
+function paddedEndByWindow(startDateObj, endDateObj, padFrac = 0.03, minDays = 5) {
   const startMs = startDateObj.getTime();
   const endMs = endDateObj.getTime();
   if (!isFinite(startMs) || !isFinite(endMs) || endMs <= startMs) return endDateObj;
