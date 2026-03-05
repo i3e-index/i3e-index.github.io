@@ -1,4 +1,10 @@
-// charts.js (robust UTC date handling + persistent right padding)
+// ----------------------------
+// charts.js (clean + robust)
+// - Loads i3e_countries.txt once and caches it
+// - Renders any series by columnKey
+// - Adds RIGHT padding for ALL windows (1M/1Y/5Y/10Y/MAX) and keeps it after clicks
+// - FIXES the “1M blank / 1Y missing months” bug by NOT forcing tickvals
+// ----------------------------
 
 function formatTitle(col) {
   return (col || "")
@@ -13,8 +19,8 @@ function generateYearLines(startYear, endYear) {
       type: "line",
       xref: "x",
       yref: "paper",
-      x0: `${y}-01-01T00:00:00.000Z`,
-      x1: `${y}-01-01T00:00:00.000Z`,
+      x0: `${y}-01-01`,
+      x1: `${y}-01-01`,
       y0: 0,
       y1: 1,
       line: { color: "rgba(80, 80, 80, 0.3)", width: 1, dash: "dot" },
@@ -23,61 +29,27 @@ function generateYearLines(startYear, endYear) {
   return shapes;
 }
 
-// ----------------- CONFIG (single source of truth) -----------------
-const RIGHT_PAD = {
-  frac: 0.03,   // 3% of visible window
-  minDays: 3,   // for 1M, 7 days can feel large; 2–4 is usually nicer
-};
-
-// ----------------- UTC DATE HELPERS -----------------
-function parseYMDToUTCDate(ymd) {
-  // ymd: "YYYY-MM-DD"
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || "").trim());
-  if (!m) return null;
-  const y = +m[1], mo = +m[2] - 1, d = +m[3];
-  return new Date(Date.UTC(y, mo, d, 0, 0, 0, 0));
-}
-
-function toDateSafeUTC(x) {
-  if (x instanceof Date) return new Date(x.getTime());
-  if (typeof x === "number") return new Date(x);
-  if (typeof x === "string") {
-    // If Plotly gives "YYYY-MM-DD", parse as UTC midnight
-    const s = x.trim();
-    const d1 = parseYMDToUTCDate(s);
-    if (d1) return d1;
-
-    // Otherwise try Date(...) then normalize to UTC date boundary by keeping the instant
-    const d2 = new Date(s);
-    if (isFinite(d2.getTime())) return d2;
-  }
-  return null;
-}
-
-function addDaysUTC(d, days) {
-  return new Date(d.getTime() + days * 24 * 60 * 60 * 1000);
-}
-
-function clampDate(d, minD, maxD) {
-  const t = d.getTime();
-  return new Date(Math.min(Math.max(t, minD.getTime()), maxD.getTime()));
-}
-
-function addRightPadding(startUTC, endUTC, cfg = RIGHT_PAD) {
-  const startMs = startUTC.getTime();
-  const endMs = endUTC.getTime();
-  if (!isFinite(startMs) || !isFinite(endMs) || endMs <= startMs) return endUTC;
+/**
+ * Compute a padded right edge for an x-axis window.
+ * Padding = max(padFrac * windowWidth, minDays).
+ * Returned as a Date snapped to midnight to avoid “edge clipping” feel.
+ */
+function paddedEndByWindow(startDateObj, endDateObj, padFrac, minDays) {
+  const startMs = startDateObj.getTime();
+  const endMs = endDateObj.getTime();
+  if (!isFinite(startMs) || !isFinite(endMs) || endMs <= startMs) return new Date(endMs);
 
   const windowMs = endMs - startMs;
-  const padMsFrac = windowMs * (cfg.frac || 0);
-  const padMsMin = (cfg.minDays || 0) * 24 * 60 * 60 * 1000;
+  const padMsFrac = windowMs * padFrac;
+  const padMsMin = minDays * 24 * 60 * 60 * 1000;
   const padMs = Math.max(padMsFrac, padMsMin);
 
-  return new Date(endMs + padMs);
+  const padded = new Date(endMs + padMs);
+  padded.setHours(0, 0, 0, 0);
+  return padded;
 }
 
-// ----------------- DATA LOADING (cached) -----------------
-let i3eData = { datesISO: [], series: {}, startYear: null, endYear: null, loaded: false };
+let i3eData = { dates: [], series: {}, startYear: null, endYear: null, loaded: false };
 
 function loadI3EData(callback) {
   if (i3eData.loaded) return callback(i3eData);
@@ -86,49 +58,40 @@ function loadI3EData(callback) {
     .then((res) => res.text())
     .then((text) => {
       const lines = text.trim().split("\n");
-      const rawHeader = lines[0].split("\t");
-      rawHeader.unshift("Date");
+      if (lines.length < 2) throw new Error("i3e_countries.txt has no data rows.");
 
+      const header = lines[0].split("\t"); // first column is date, then series keys
       const rows = lines.slice(1).map((line) => line.split("\t"));
-      const datesYMD = rows.map((r) => r[0]);
 
-      // Convert all x values to ISO UTC midnight strings
-      const datesISO = datesYMD.map((d) => {
-        const utc = parseYMDToUTCDate(d);
-        return utc ? utc.toISOString() : d; // fallback (shouldn't happen)
-      });
-
-      const startYear = new Date(datesISO[0]).getUTCFullYear();
-      const endYear = new Date(datesISO[datesISO.length - 1]).getUTCFullYear();
+      const dates = rows.map((r) => (r[0] || "").trim());
+      const startYear = new Date(dates[0]).getFullYear();
+      const endYear = new Date(dates[dates.length - 1]).getFullYear();
 
       const series = {};
-      for (let i = 1; i < rawHeader.length; i++) {
-        const key = rawHeader[i];
+      for (let i = 1; i < header.length; i++) {
+        const key = (header[i] || "").trim();
         series[key] = rows.map((r) => parseFloat(r[i]));
       }
 
-      i3eData = { datesISO, series, startYear, endYear, loaded: true };
+      i3eData = { dates, series, startYear, endYear, loaded: true };
       callback(i3eData);
     })
     .catch((err) => console.error("Failed to load I3E data", err));
 }
 
-// ----------------- MAIN RENDER -----------------
 function renderChart(containerId, columnKey) {
-  loadI3EData(({ datesISO, series, startYear, endYear }) => {
+  loadI3EData(({ dates, series, startYear, endYear }) => {
     const values = series[columnKey];
-    if (!values || values.length < 2 || values.some((v) => isNaN(v))) return;
+    if (!values || !values.length || values.some((v) => Number.isNaN(v))) return;
 
     const latest = values[values.length - 1];
-    const previous = values[values.length - 2];
+    const previous = values.length >= 2 ? values[values.length - 2] : latest;
     const delta = latest - previous;
     const deltaStr = (delta > 0 ? "+" : "") + delta.toFixed(2);
     const deltaColor = delta > 0 ? "red" : "green";
+    const latestDate = dates[dates.length - 1];
 
-    // Latest label as YYYY-MM-DD (from ISO)
-    const latestISO = datesISO[datesISO.length - 1];
-    const latestDateLabel = String(latestISO).slice(0, 10);
-
+    // Shapes (year lines + baseline at 100)
     const shapes = generateYearLines(startYear, endYear);
     shapes.push({
       type: "line",
@@ -149,7 +112,7 @@ function renderChart(containerId, columnKey) {
     chartDiv.innerHTML = `
       <div class="plot-title" style="text-align:center; font-size:18px;">I3E ECONOMIC UNCERTAINTY INDEX (${plotTitle})</div>
       <div class="plot-subtitle" style="text-align:center; font-size:16px;">
-        <span class="label">${latestDateLabel}:</span>
+        <span class="label">${latestDate}:</span>
         <span class="value">${latest.toFixed(2)}</span>
         <span class="change" style="color:${deltaColor};">(${deltaStr})</span>
       </div>
@@ -160,26 +123,42 @@ function renderChart(containerId, columnKey) {
     if (!plotEl) return;
 
     // Data bounds
-    const dataStart = new Date(datesISO[0]);
-    const dataEnd = new Date(datesISO[datesISO.length - 1]);
+    const dataStart = new Date(dates[0]);
+    dataStart.setHours(0, 0, 0, 0);
 
-    // Default: 10Y
-    const start10Y = new Date(Date.UTC(dataEnd.getUTCFullYear() - 10, dataEnd.getUTCMonth(), dataEnd.getUTCDate()));
-    const defaultLeft = clampDate(start10Y, dataStart, dataEnd);
-    const defaultRight = addRightPadding(defaultLeft, dataEnd);
+    const dataEnd = new Date(dates[dates.length - 1]);
+    dataEnd.setHours(0, 0, 0, 0);
 
-    function paddedRangeFromLeft(leftDate) {
-      const left = clampDate(leftDate, dataStart, dataEnd);
-      const right = addRightPadding(left, dataEnd);
-      if (right.getTime() <= left.getTime()) return null;
-      return [left.toISOString(), right.toISOString()];
+    // Tuning: right padding for ALL windows
+    // - padFrac makes padding scale with window width
+    // - minDays guarantees some space in short windows like 1M
+    const PAD_FRAC = 0.04; // 4% of the visible window width (adjust 0.02–0.06)
+    const MIN_DAYS = 5;    // minimum days of padding for short windows (adjust 3–10)
+
+    // Default window: last 10 years, padded right
+    const defaultLeft = new Date(dataEnd);
+    defaultLeft.setFullYear(defaultLeft.getFullYear() - 10);
+    defaultLeft.setHours(0, 0, 0, 0);
+
+    const defaultRight = paddedEndByWindow(defaultLeft, dataEnd, PAD_FRAC, MIN_DAYS);
+
+    // Compute a padded range given a left edge (Date)
+    function computePaddedRange(leftDateObj) {
+      const leftMs = leftDateObj.getTime();
+      const clampedLeft = new Date(Math.max(leftMs, dataStart.getTime()));
+      clampedLeft.setHours(0, 0, 0, 0);
+
+      const paddedRight = paddedEndByWindow(clampedLeft, dataEnd, PAD_FRAC, MIN_DAYS);
+
+      return [clampedLeft.toISOString(), paddedRight.toISOString()];
     }
 
+    // Initial plot
     Plotly.newPlot(
       plotEl,
       [
         {
-          x: datesISO,
+          x: dates,
           y: values,
           type: "scatter",
           mode: "lines",
@@ -197,9 +176,11 @@ function renderChart(containerId, columnKey) {
           type: "date",
           autorange: false,
           range: [defaultLeft.toISOString(), defaultRight.toISOString()],
+
+          // ✅ IMPORTANT: DO NOT force tickvals (this broke 1M/1Y views)
           tickangle: -90,
           tickformat: "%Y",
-          tickvals: Array.from({ length: endYear - startYear + 1 }, (_, i) => `${startYear + i}-01-01T00:00:00.000Z`),
+
           showgrid: false,
           ticks: "outside",
           ticklen: 4,
@@ -228,32 +209,57 @@ function renderChart(containerId, columnKey) {
         responsive: true,
       }
     ).then(() => {
-      // Keep padding after rangeselector changes.
-      // We only rewrite the right edge to our padded end.
+      // Keep right padding after clicking range buttons or any relayout
       let guard = false;
 
       plotEl.on("plotly_relayout", (ev) => {
         if (guard) return;
 
-        const leftRaw =
+        // If Plotly is updating the x-axis range, re-apply padded right.
+        // We only do this when we can detect a left edge.
+        const leftISO =
           ev["xaxis.range[0]"] ||
           (Array.isArray(ev["xaxis.range"]) ? ev["xaxis.range"][0] : null);
 
-        if (!leftRaw) return;
+        // If Plotly switched back to autorange, set it to our padded full-data range
+        if (ev["xaxis.autorange"] === true) {
+          const fullRange = computePaddedRange(dataStart);
+          guard = true;
+          Plotly.relayout(plotEl, {
+            "xaxis.autorange": false,
+            "xaxis.range": fullRange,
+          }).finally(() => {
+            guard = false;
+          });
+          return;
+        }
 
-        const leftDate = toDateSafeUTC(leftRaw);
-        if (!leftDate || !isFinite(leftDate.getTime())) return;
+        if (!leftISO) return;
 
-        const range = paddedRangeFromLeft(leftDate);
-        if (!range) return;
+        const leftDate = new Date(leftISO);
+        if (!isFinite(leftDate.getTime())) return;
 
-        // Avoid endless loops
-        const cur = plotEl.layout?.xaxis?.range;
-        if (Array.isArray(cur) && String(cur[0]) === range[0] && String(cur[1]) === range[1]) return;
+        const paddedRange = computePaddedRange(leftDate);
+
+        // If user manually zoomed/panned beyond our padded end, don't fight them.
+        const rightISO =
+          ev["xaxis.range[1]"] ||
+          (Array.isArray(ev["xaxis.range"]) ? ev["xaxis.range"][1] : null);
+
+        if (rightISO) {
+          const rightDate = new Date(rightISO);
+          if (isFinite(rightDate.getTime()) && rightDate.getTime() > dataEnd.getTime()) {
+            return; // respect user intent
+          }
+        }
 
         guard = true;
-        Plotly.relayout(plotEl, { "xaxis.autorange": false, "xaxis.range": range })
-          .finally(() => { guard = false; });
+        Plotly.relayout(plotEl, {
+          "xaxis.autorange": false,
+          "xaxis.range": paddedRange,
+        }).finally(() => {
+          guard = false;
+        });
       });
     });
   });
