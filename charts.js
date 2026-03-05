@@ -23,6 +23,31 @@ function generateYearLines(startYear, endYear) {
   return shapes;
 }
 
+/**
+ * Add right padding to an x-axis window using a percentage of the visible range.
+ * - Keeps padding proportional for 1M / 1Y / 10Y / MAX windows.
+ * - Snaps padded end to midnight to avoid edge clipping.
+ *
+ * padFrac: e.g. 0.05 = 5% of the current window width
+ * minDays: ensures "plenty of room" even for short windows
+ */
+function paddedEndByWindow(startDateObj, endDateObj, padFrac = 0.06, minDays = 14) {
+  const startMs = startDateObj.getTime();
+  const endMs = endDateObj.getTime();
+  if (!isFinite(startMs) || !isFinite(endMs) || endMs <= startMs) return endDateObj;
+
+  const windowMs = endMs - startMs;
+  const padMsFrac = windowMs * padFrac;
+  const padMsMin = minDays * 24 * 60 * 60 * 1000;
+
+  const padMs = Math.max(padMsFrac, padMsMin);
+  const padded = new Date(endMs + padMs);
+
+  // Snap to midnight to avoid the right-edge "clip" effect
+  padded.setHours(0, 0, 0, 0);
+  return padded;
+}
+
 let i3eData = { dates: [], series: {}, loaded: false };
 
 function loadI3EData(callback) {
@@ -104,15 +129,15 @@ function renderChart(containerId, columnKey) {
       <div id="${containerId}-plot" style="width: 100%; height: 60vw; max-height: 600px;"></div>
     `;
 
-    // ✅ Default window: last 10 years (using the last data date, not "today")
+    // Default window: last 10 years (using the last data date, not "today")
     const lastDateObj = new Date(dates[dates.length - 1]);
     const start10Y = new Date(lastDateObj);
     start10Y.setFullYear(start10Y.getFullYear() - 10);
+    start10Y.setHours(0, 0, 0, 0);
 
-    // ✅ Add right padding so the last point isn't glued to the edge
-    const PAD_DAYS_RIGHT = 10; // try 7–14
-    const paddedEnd = new Date(lastDateObj);
-    paddedEnd.setDate(paddedEnd.getDate() + PAD_DAYS_RIGHT);
+    // ✅ Right padding by % of window + minimum days to ensure plenty of room
+    // Increase padFrac/minDays if you want even more whitespace on the right
+    const paddedEnd = paddedEndByWindow(start10Y, lastDateObj, 0.07, 21);
 
     Plotly.newPlot(
       `${containerId}-plot`,
@@ -135,7 +160,7 @@ function renderChart(containerId, columnKey) {
         xaxis: {
           type: "date",
 
-          // ✅ Force initial view to last 10 years + a bit of padding on the right
+          // ✅ Force initial view to last 10 years + padded right end
           autorange: false,
           range: [start10Y.toISOString(), paddedEnd.toISOString()],
 
