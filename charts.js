@@ -109,6 +109,11 @@ function renderChart(containerId, columnKey) {
     const start10Y = new Date(lastDateObj);
     start10Y.setFullYear(start10Y.getFullYear() - 10);
 
+    // ✅ Add right padding so the last point isn't glued to the edge
+    const PAD_DAYS_RIGHT = 10; // try 7–14
+    const paddedEnd = new Date(lastDateObj);
+    paddedEnd.setDate(paddedEnd.getDate() + PAD_DAYS_RIGHT);
+
     Plotly.newPlot(
       `${containerId}-plot`,
       [
@@ -130,9 +135,9 @@ function renderChart(containerId, columnKey) {
         xaxis: {
           type: "date",
 
-          // ✅ Force initial view to last 10 years
+          // ✅ Force initial view to last 10 years + a bit of padding on the right
           autorange: false,
-          range: [start10Y.toISOString(), lastDateObj.toISOString()],
+          range: [start10Y.toISOString(), paddedEnd.toISOString()],
 
           tickangle: -90,
           tickformat: "%Y",
