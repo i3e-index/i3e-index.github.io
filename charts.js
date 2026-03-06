@@ -1,12 +1,13 @@
 /* -------------------------------------------------------
-   I3E Plotly Chart Renderer (revised)
+   I3E Plotly Chart Renderer (revised + generic TSV renderer)
    Fixes:
    - Range selector buttons (1M/1Y/5Y/10Y/MAX) now always show data
      by using DAY-based windows (30/365/1825/3650) instead of "month".
    - Robust handling of missing/NaN values (keeps gaps instead of aborting).
-   - Uses last *valid* data point for “latest/previous” and for range end.
+   - Uses last valid data point for “latest/previous” and for range end.
    - Adds a small right-side padding so the line doesn’t hit the wall.
-   - Avoids “blank plot” issues caused by ranges not aligning with your x data.
+   - Avoids blank plot issues caused by ranges not aligning with x data.
+   - Adds a reusable TSV chart renderer for Forward charts.
 -------------------------------------------------------- */
 
 function formatTitle(col) {
@@ -22,7 +23,6 @@ function addDays(dateObj, days) {
 }
 
 function toDateOnlyISO(dateObj) {
-  // Plotly date axis is happiest with "YYYY-MM-DD"
   const yyyy = dateObj.getFullYear();
   const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
   const dd = String(dateObj.getDate()).padStart(2, "0");
@@ -66,8 +66,6 @@ function getPrevValidIndex(values, fromIndex) {
   return -1;
 }
 
-/* ----------------- Data cache + loader ----------------- */
-
 const i3eData = {
   loaded: false,
   loadingPromise: null,
@@ -76,6 +74,8 @@ const i3eData = {
   startYear: null,
   endYear: null,
 };
+
+const tsvCache = {};
 
 function loadI3EData() {
   if (i3eData.loaded) return Promise.resolve(i3eData);
@@ -88,7 +88,7 @@ function loadI3EData() {
       if (lines.length < 2) throw new Error("i3e_countries.txt has no data rows.");
 
       const rawHeader = lines[0].split("\t");
-      rawHeader.unshift("Date"); // column 0 is Date
+      rawHeader.unshift("Date");
 
       const rows = lines.slice(1).map((line) => line.split("\t"));
       const dates = rows.map((r) => r[0]);
@@ -99,13 +99,10 @@ function loadI3EData() {
       const series = {};
       for (let i = 1; i < rawHeader.length; i++) {
         const key = rawHeader[i];
-
-        // Keep nulls for missing values; Plotly will draw gaps gracefully
         const values = rows.map((r) => {
           const n = Number.parseFloat(r[i]);
           return Number.isFinite(n) ? n : null;
         });
-
         series[key] = values;
       }
 
@@ -125,7 +122,191 @@ function loadI3EData() {
   return i3eData.loadingPromise;
 }
 
-/* ----------------- Main chart render ----------------- */
+function loadSingleSeriesTSV(file) {
+  if (tsvCache[file]?.loaded) return Promise.resolve(tsvCache[file]);
+  if (tsvCache[file]?.loadingPromise) return tsvCache[file].loadingPromise;
+
+  tsvCache[file] = tsvCache[file] || {};
+
+  tsvCache[file].loadingPromise = fetch(file)
+    .then((res) => res.text())
+    .then((text) => {
+      const lines = text.trim().split("\n").filter((l) => l.trim().length > 0);
+      if (lines.length < 2) throw new Error(`${file} has no data rows.`);
+
+      const rows = lines.slice(1).map((line) => line.split("\t"));
+      const dates = rows.map((r) => (r[0] || "").trim());
+      const values = rows.map((r) => {
+        const n = Number.parseFloat((r[1] || "").trim());
+        return Number.isFinite(n) ? n : null;
+      });
+
+      const startYear = new Date(dates[0]).getFullYear();
+      const endYear = new Date(dates[dates.length - 1]).getFullYear();
+
+      tsvCache[file] = {
+        loaded: true,
+        loadingPromise: null,
+        dates,
+        values,
+        startYear,
+        endYear,
+      };
+
+      return tsvCache[file];
+    })
+    .catch((err) => {
+      console.error(`Failed to load ${file}:`, err);
+      throw err;
+    });
+
+  return tsvCache[file].loadingPromise;
+}
+
+function buildRangeButtons() {
+  return [
+    { count: 30, label: "1M", step: "day", stepmode: "backward" },
+    { count: 365, label: "1Y", step: "day", stepmode: "backward" },
+    { count: 1825, label: "5Y", step: "day", stepmode: "backward" },
+    { count: 3650, label: "10Y", step: "day", stepmode: "backward" },
+    { step: "all", label: "MAX" },
+  ];
+}
+
+function renderSeriesIntoContainer(containerId, opts) {
+  const {
+    dates,
+    values,
+    startYear,
+    endYear,
+    title,
+    lineColor,
+    fillColor,
+    seriesName,
+    yMax = 250,
+    valueDecimals = 2,
+  } = opts;
+
+  const chartDiv = document.getElementById(containerId);
+  if (!chartDiv) return;
+
+  const lastIdx = getLastValidIndex(values);
+  if (lastIdx < 0) {
+    chartDiv.innerHTML = `<div style="color:#b00;text-align:center;">No valid data available</div>`;
+    return;
+  }
+
+  const prevIdx = getPrevValidIndex(values, lastIdx);
+  const latest = values[lastIdx];
+  const previous = prevIdx >= 0 ? values[prevIdx] : null;
+
+  const delta = previous !== null ? latest - previous : null;
+  const deltaStr =
+    delta === null ? "" : (delta > 0 ? "+" : "") + delta.toFixed(valueDecimals);
+  const deltaColor = delta === null ? "#666" : delta > 0 ? "red" : "green";
+
+  const latestDate = dates[lastIdx];
+
+  const shapes = generateYearLines(startYear, endYear);
+  shapes.push({
+    type: "line",
+    xref: "paper",
+    yref: "y",
+    x0: 0,
+    x1: 1,
+    y0: 100,
+    y1: 100,
+    line: { color: "#555", width: 1 },
+  });
+
+  chartDiv.innerHTML = `
+    <div class="plot-title" style="text-align:center; font-size:18px;">
+      ${title}
+    </div>
+    <div class="plot-subtitle" style="text-align:center; font-size:16px;">
+      <span class="label">${latestDate}:</span>
+      <span class="value">${latest.toFixed(valueDecimals)}</span>
+      ${
+        delta === null
+          ? ""
+          : `<span class="change" style="color:${deltaColor};">(${deltaStr})</span>`
+      }
+    </div>
+    <div id="${containerId}-plot" style="width:100%; height:60vw; max-height:600px;"></div>
+  `;
+
+  const endAnchor = new Date(latestDate);
+  const endPadded = addDays(endAnchor, 7);
+
+  const start10Y = new Date(endAnchor);
+  start10Y.setFullYear(start10Y.getFullYear() - 10);
+
+  const initialRange = [toDateOnlyISO(start10Y), toDateOnlyISO(endPadded)];
+
+  const yearTickVals = Array.from(
+    { length: endYear - startYear + 1 },
+    (_, i) => `${startYear + i}-01-01`
+  );
+
+  const plotId = `${containerId}-plot`;
+
+  Plotly.newPlot(
+    plotId,
+    [
+      {
+        x: dates,
+        y: values,
+        type: "scatter",
+        mode: "lines",
+        fill: "tozeroy",
+        fillcolor: fillColor,
+        line: { color: lineColor, width: 2 },
+        hovertemplate: "%{x|%Y-%m-%d}<br>Value: %{y}<extra></extra>",
+        name: seriesName,
+        connectgaps: false,
+      },
+    ],
+    {
+      margin: { t: 30, b: 50, l: 60, r: 20 },
+      yaxis: {
+        range: [0, yMax],
+        title: "Index Value",
+        zeroline: false,
+      },
+      xaxis: {
+        type: "date",
+        autorange: false,
+        range: initialRange,
+        tickangle: -90,
+        tickformat: "%Y",
+        tickvals: yearTickVals,
+        showgrid: false,
+        ticks: "outside",
+        ticklen: 4,
+        tickcolor: "#999",
+        rangeselector: {
+          active: 3,
+          buttons: buildRangeButtons(),
+        },
+      },
+      shapes,
+      hovermode: "x unified",
+      plot_bgcolor: "white",
+      dragmode: false,
+    },
+    {
+      displayModeBar: false,
+      scrollZoom: false,
+      doubleClick: false,
+      staticPlot: false,
+      responsive: true,
+    }
+  );
+
+  Plotly.relayout(plotId, {
+    "xaxis.range[1]": toDateOnlyISO(endPadded),
+  });
+}
 
 async function renderChart(containerId, columnKey) {
   const chartDiv = document.getElementById(containerId);
@@ -147,157 +328,57 @@ async function renderChart(containerId, columnKey) {
     return;
   }
 
-  // Find last valid datapoint (handles trailing nulls)
-  const lastIdx = getLastValidIndex(values);
-  if (lastIdx < 0) {
-    chartDiv.innerHTML = `<div style="color:#b00;text-align:center;">No valid data for: ${columnKey}</div>`;
-    return;
-  }
-
-  const prevIdx = getPrevValidIndex(values, lastIdx);
-  const latest = values[lastIdx];
-  const previous = prevIdx >= 0 ? values[prevIdx] : null;
-
-  const delta = previous !== null ? latest - previous : null;
-  const deltaStr =
-    delta === null ? "" : (delta > 0 ? "+" : "") + delta.toFixed(2);
-  const deltaColor = delta === null ? "#666" : delta > 0 ? "red" : "green";
-
-  const latestDate = dates[lastIdx];
-
-  // Shapes (year lines + y=100)
-  const shapes = generateYearLines(startYear, endYear);
-  shapes.push({
-    type: "line",
-    xref: "paper",
-    yref: "y",
-    x0: 0,
-    x1: 1,
-    y0: 100,
-    y1: 100,
-    line: { color: "#555", width: 1 },
-  });
-
-  // Build header HTML
-  const plotTitle = formatTitle(columnKey);
-
-  chartDiv.innerHTML = `
-    <div class="plot-title" style="text-align:center; font-size:18px;">
-      I3E ECONOMIC UNCERTAINTY INDEX (${plotTitle})
-    </div>
-    <div class="plot-subtitle" style="text-align:center; font-size:16px;">
-      <span class="label">${latestDate}:</span>
-      <span class="value">${latest.toFixed(2)}</span>
-      ${
-        delta === null
-          ? ""
-          : `<span class="change" style="color:${deltaColor};">(${deltaStr})</span>`
-      }
-    </div>
-    <div id="${containerId}-plot" style="width:100%; height:60vw; max-height:600px;"></div>
-  `;
-
-  // ---- X range defaults and right-padding ----
-  // Use last valid date as end anchor.
-  const endAnchor = new Date(latestDate);
-
-  // Add small right padding so the line doesn't hit the wall.
-  // 7 days works well for daily-ish series; adjust if you want.
-  const endPadded = addDays(endAnchor, 7);
-
-  // Default view: last 10 years from endAnchor (not from "today")
-  const start10Y = new Date(endAnchor);
-  start10Y.setFullYear(start10Y.getFullYear() - 10);
-
-  // Use date-only strings to match your x values ("YYYY-MM-DD")
-  const initialRange = [toDateOnlyISO(start10Y), toDateOnlyISO(endPadded)];
-
-  // ---- Range selector buttons (robust) ----
-  // Using step:"day" avoids Plotly "month" quirks and ensures data shows.
-  const rangeButtons = [
-    { count: 30, label: "1M", step: "day", stepmode: "backward" },
-    { count: 365, label: "1Y", step: "day", stepmode: "backward" },
-    { count: 1825, label: "5Y", step: "day", stepmode: "backward" },
-    { count: 3650, label: "10Y", step: "day", stepmode: "backward" },
-    { step: "all", label: "MAX" },
-  ];
-
-  // ---- Tick values: yearly ticks ----
-  const yearTickVals = Array.from(
-    { length: endYear - startYear + 1 },
-    (_, i) => `${startYear + i}-01-01`
-  );
-
-  const plotId = `${containerId}-plot`;
-
-  Plotly.newPlot(
-    plotId,
-    [
-      {
-        x: dates,
-        y: values,
-        type: "scatter",
-        mode: "lines",
-        fill: "tozeroy",
-        fillcolor: "rgba(255, 59, 48, 0.04)",
-        line: { color: "#FF3B30", width: 2 },
-        hovertemplate: "%{x|%Y-%m-%d}<br>Value: %{y}<extra></extra>",
-        name: "Index",
-        connectgaps: false, // keep gaps if nulls exist
-      },
-    ],
-    {
-      margin: { t: 30, b: 50, l: 60, r: 20 },
-      yaxis: {
-        range: [0, 250],
-        title: "Index Value",
-        zeroline: false,
-      },
-      xaxis: {
-        type: "date",
-
-        // Force initial view (and make it stable)
-        autorange: false,
-        range: initialRange,
-
-        tickangle: -90,
-        tickformat: "%Y",
-        tickvals: yearTickVals,
-        showgrid: false,
-        ticks: "outside",
-        ticklen: 4,
-        tickcolor: "#999",
-
-        // Range selector that actually works with your data reliably
-        rangeselector: {
-          active: 3, // 10Y
-          buttons: rangeButtons,
-        },
-      },
-      shapes,
-      hovermode: "x unified",
-      plot_bgcolor: "white",
-
-      // Keep interaction simple; buttons still work
-      dragmode: false,
-    },
-    {
-      displayModeBar: false,
-      scrollZoom: false,
-      doubleClick: false,
-      staticPlot: false,
-      responsive: true,
-    }
-  );
-
-  // Extra safety: after render, ensure we’re not ending *before* last data point.
-  // (Can happen if Plotly normalizes ranges oddly in some edge cases.)
-  Plotly.relayout(plotId, {
-    "xaxis.range[1]": toDateOnlyISO(endPadded),
+  renderSeriesIntoContainer(containerId, {
+    dates,
+    values,
+    startYear,
+    endYear,
+    title: `I3E ECONOMIC UNCERTAINTY INDEX (${formatTitle(columnKey)})`,
+    lineColor: "#FF3B30",
+    fillColor: "rgba(255, 59, 48, 0.04)",
+    seriesName: "Index",
+    yMax: 250,
+    valueDecimals: 2,
   });
 }
 
-/* ----------------- Usage example -----------------
-   renderChart("chart-us", "united_states");
-   renderChart("chart-de", "germany");
---------------------------------------------------- */
+async function renderTSVChart(containerId, config) {
+  const chartDiv = document.getElementById(containerId);
+  if (!chartDiv) return;
+
+  const {
+    file,
+    title = "Time Series",
+    lineColor = "#00BFFF",
+    fillColor = "rgba(31,119,180,0.06)",
+    seriesName = "Series",
+    yMax = 250,
+    valueDecimals = 2,
+  } = config || {};
+
+  if (!file) {
+    chartDiv.innerHTML = `<div style="color:#b00;text-align:center;">Missing TSV file</div>`;
+    return;
+  }
+
+  let data;
+  try {
+    data = await loadSingleSeriesTSV(file);
+  } catch {
+    chartDiv.innerHTML = `<div style="color:#b00;text-align:center;">Failed to load ${file}</div>`;
+    return;
+  }
+
+  renderSeriesIntoContainer(containerId, {
+    dates: data.dates,
+    values: data.values,
+    startYear: data.startYear,
+    endYear: data.endYear,
+    title,
+    lineColor,
+    fillColor,
+    seriesName,
+    yMax,
+    valueDecimals,
+  });
+}
